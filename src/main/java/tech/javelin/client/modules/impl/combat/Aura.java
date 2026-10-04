@@ -42,6 +42,7 @@ import tech.javelin.client.modules.api.setting.impl.ModeSetting;
 import tech.javelin.client.modules.api.setting.impl.MultiBooleanSetting;
 import tech.javelin.client.modules.api.setting.impl.NumberSetting;
 import tech.javelin.client.modules.impl.movement.AutoSprint;
+import tech.javelin.utility.component.FreeLookComponent;
 import tech.javelin.utility.component.RotationComponent;
 import tech.javelin.utility.game.player.MovingUtil;
 import tech.javelin.utility.game.player.PlayerInventoryUtil;
@@ -74,7 +75,6 @@ public final class Aura extends Module {
    private final ModeSetting.Value vanilla;
 
    public final ModeSetting typeSprint;
-   public final ModeSetting typeMove;
    public final ModeSetting throughBlocks;
    public final ModeSetting typeOtvodka;
    public final BooleanSetting smartcriticals;
@@ -117,9 +117,8 @@ public final class Aura extends Module {
       this.vanilla = new ModeSetting.Value(this.rotationMode, "Vanilla");
 
       this.typeSprint = new ModeSetting("Тип спринта", new String[]{"Packet", "Silent", "Legit", "Off"});
-      this.typeMove = new ModeSetting("Коррекция движения", new String[]{"Сфокусированная", "Свободная", "Совмещенная", "Таргетированная"});
       this.throughBlocks = new ModeSetting("Бить через блоки", new String[]{"Умная", "Выключено", "Неполноценные", "Полноценные"});
-      this.typeOtvodka = new ModeSetting("Тип отводки", new String[]{"Камера", "Плавная", "Space-Times"});
+      this.typeOtvodka = new ModeSetting("Тип отводки", new String[]{"Камера", "Плавная", "Space-Times", "Off"});
       this.smartcriticals = new BooleanSetting("Умные криты", true);
       this.maceCrits = new BooleanSetting("Крит булавы", true);
       this.autoSword = new BooleanSetting("Авто-меч", true);
@@ -213,22 +212,58 @@ public final class Aura extends Module {
 
    @EventTarget
    public void onTick(EventTick e) {
+      LivingEntity prevTarget = this.target;
       if (this.target == null || !this.isValid(this.target)) {
          this.target = this.updateTarget();
       }
 
+      if (prevTarget != null && this.target == null && mc.player != null) {
+         if (this.typeOtvodka.is("Камера")) {
+            float snapYaw = this.lastYaw != 0.0F ? this.lastYaw : mc.player.getYaw();
+            float snapPitch = this.lastPitch != 0.0F ? this.lastPitch : mc.player.getPitch();
+            mc.player.setYaw(snapYaw);
+            mc.player.setPitch(snapPitch);
+            FreeLookComponent.setFreeYaw(snapYaw);
+            FreeLookComponent.setFreePitch(snapPitch);
+            FreeLookComponent.setActive(false);
+         } else if (this.typeOtvodka.is("Off")) {
+            if (FreeLookComponent.getFreeYaw() != 0.0F) {
+               mc.player.setYaw(FreeLookComponent.getFreeYaw());
+               mc.player.setPitch(FreeLookComponent.getFreePitch());
+            }
+            FreeLookComponent.setActive(false);
+         } else if (this.typeOtvodka.is("Плавная")) {
+            float targetYaw = FreeLookComponent.getFreeYaw() != 0.0F ? FreeLookComponent.getFreeYaw() : mc.player.getYaw();
+            float targetPitch = FreeLookComponent.getFreePitch() != 0.0F ? FreeLookComponent.getFreePitch() : mc.player.getPitch();
+            float curYaw = this.lastYaw != 0.0F ? this.lastYaw : mc.player.getYaw();
+            float curPitch = this.lastPitch != 0.0F ? this.lastPitch : mc.player.getPitch();
+            float smoothYaw = MathHelper.lerp(0.5F, curYaw, targetYaw);
+            float smoothPitch = MathHelper.lerp(0.5F, curPitch, targetPitch);
+            mc.player.setYaw(smoothYaw);
+            mc.player.setPitch(smoothPitch);
+            FreeLookComponent.setFreeYaw(smoothYaw);
+            FreeLookComponent.setFreePitch(smoothPitch);
+            FreeLookComponent.setActive(false);
+         } else {
+            FreeLookComponent.setActive(false);
+         }
+      }
+
       if (this.target != null) {
          if (this.isCanAttack() && this.hurtTimer.finished(458L) && !this.target.isBlocking()) {
-            if (mc.player.isSprinting() && !mc.player.isOnGround() && !mc.player.isSwimming()) {
-               mc.player.setSprinting(false);
+            boolean wasSprinting = mc.player.isSprinting();
+            if (wasSprinting && (this.typeSprint.is("Packet") || this.typeSprint.is("Silent"))) {
                mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, Mode.STOP_SPRINTING));
-               if (!AutoSprint.INSTANCE.isEnabled()) {
-                  mc.options.sprintKey.setPressed(false);
-               }
+               mc.player.setSprinting(false);
             }
 
             mc.interactionManager.attackEntity(mc.player, this.target);
             mc.player.swingHand(Hand.MAIN_HAND);
+
+            if (wasSprinting && (this.typeSprint.is("Packet") || this.typeSprint.is("Silent"))) {
+               mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, Mode.START_SPRINTING));
+               mc.player.setSprinting(true);
+            }
             this.hurtTimer.reset();
          }
 
@@ -395,6 +430,28 @@ public final class Aura extends Module {
 
    public void onDisable() {
       Javelin.getInstance().getModuleManager().setAcceleration(0.0F);
+      if (mc.player != null) {
+         if (this.typeOtvodka.is("Off")) {
+            if (FreeLookComponent.getFreeYaw() != 0.0F) {
+               mc.player.setYaw(FreeLookComponent.getFreeYaw());
+               mc.player.setPitch(FreeLookComponent.getFreePitch());
+            }
+         } else if (this.typeOtvodka.is("Камера")) {
+            if (this.lastYaw != 0.0F || this.lastPitch != 0.0F) {
+               mc.player.setYaw(this.lastYaw);
+               mc.player.setPitch(this.lastPitch);
+               FreeLookComponent.setFreeYaw(this.lastYaw);
+               FreeLookComponent.setFreePitch(this.lastPitch);
+            }
+         } else if (this.lastYaw != 0.0F || this.lastPitch != 0.0F) {
+            mc.player.setYaw(this.lastYaw);
+            mc.player.setPitch(this.lastPitch);
+            FreeLookComponent.setFreeYaw(this.lastYaw);
+            FreeLookComponent.setFreePitch(this.lastPitch);
+         }
+         FreeLookComponent.setActive(false);
+      }
+      this.target = null;
       super.onDisable();
    }
 }

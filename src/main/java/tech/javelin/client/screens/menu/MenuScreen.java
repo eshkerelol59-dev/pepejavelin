@@ -109,11 +109,12 @@ public class MenuScreen extends Screen implements IClient {
       if (!this.needToClose) {
          this.savedRunnable = new Runnable() {
             public void run() {
-               IMinecraft.mc.getWindow().scaleFactor = 2.0D;
-               int i3 = IMinecraft.mc.getWindow().framebufferWidth / 2;
-               IMinecraft.mc.getWindow().scaledWidth = IMinecraft.mc.getWindow().framebufferWidth / 2 > i3 ? i3 + 1 : i3;
-               int j3 = IMinecraft.mc.getWindow().framebufferHeight / 2;
-               IMinecraft.mc.getWindow().scaledHeight = IMinecraft.mc.getWindow().framebufferHeight / 2 > j3 ? j3 + 1 : j3;
+               double guiScaleVal = (double)Menu.INSTANCE.guiScale.getCurrent();
+               IMinecraft.mc.getWindow().scaleFactor = guiScaleVal;
+               int i3 = (int)((double)IMinecraft.mc.getWindow().framebufferWidth / guiScaleVal);
+               IMinecraft.mc.getWindow().scaledWidth = (double)IMinecraft.mc.getWindow().framebufferWidth / guiScaleVal > (double)i3 ? i3 + 1 : i3;
+               int j3 = (int)((double)IMinecraft.mc.getWindow().framebufferHeight / guiScaleVal);
+               IMinecraft.mc.getWindow().scaledHeight = (double)IMinecraft.mc.getWindow().framebufferHeight / guiScaleVal > (double)j3 ? j3 + 1 : j3;
                if (!MenuScreen.this.needToClose) {
                   PlayerInventoryComponent.updateMoveKeys();
                }
@@ -133,10 +134,10 @@ public class MenuScreen extends Screen implements IClient {
                Theme theme = Javelin.getInstance().getThemeManager().getCurrentTheme();
                CustomDrawContext drawContext = CustomDrawContext.of(context);
                StencilUtil.push();
-               DrawUtil.drawMetanoise(drawContext.getMatrices(), (float)x, (float)y, 353.0F, 199.0F, MenuScreen.this.openAnimationMetanoise.getValue(), 10.0F, new ColorRGBA(0, 0, 0, 211), theme.getColor());
+               DrawUtil.drawMetanoise(drawContext.getMatrices(), (float)x, (float)y, 353.0F, 199.0F, MenuScreen.this.openAnimationMetanoise.getValue(), 4.0F, new ColorRGBA(0, 0, 0, 211), theme.getColor());
                StencilUtil.read(1);
-               DrawUtil.drawBlur(drawContext.getMatrices(), (float)x, (float)y, 353.0F, 199.0F, 15.0F, BorderRadius.all(10.0F), new ColorRGBA(255, 255, 255, MenuScreen.this.openAnimation.getValue() * 255.0F));
-               DrawUtil.drawMetanoise(drawContext.getMatrices(), (float)x, (float)y, 353.0F, 199.0F, MenuScreen.this.openAnimationMetanoise.getValue(), 10.0F, new ColorRGBA(0, 0, 0, 211), theme.getColor().withAlpha(100));
+               DrawUtil.drawBlur(drawContext.getMatrices(), (float)x, (float)y, 353.0F, 199.0F, 15.0F, BorderRadius.all(4.0F), new ColorRGBA(255, 255, 255, MenuScreen.this.openAnimation.getValue() * 255.0F));
+               DrawUtil.drawMetanoise(drawContext.getMatrices(), (float)x, (float)y, 353.0F, 199.0F, MenuScreen.this.openAnimationMetanoise.getValue(), 4.0F, new ColorRGBA(0, 0, 0, 211), theme.getColor().withAlpha(100));
                DrawUtil.drawRoundedRect(drawContext.getMatrices(), (float)x + lineX, (float)y, 0.25F, 199.0F, BorderRadius.ZERO, (new ColorRGBA(-1)).withAlpha(MenuScreen.this.openAnimation.getValue() * 255.0F));
                DrawUtil.drawRoundedRect(drawContext.getMatrices(), (float)x, (float)(y + 31), 353.0F, 0.25F, BorderRadius.ZERO, (new ColorRGBA(-1)).withAlpha(MenuScreen.this.openAnimation.getValue() * 255.0F));
                DrawUtil.drawRoundedRect(drawContext.getMatrices(), (float)x, (float)(y + 173), 74.0F, 0.25F, BorderRadius.ZERO, (new ColorRGBA(-1)).withAlpha(MenuScreen.this.openAnimation.getValue() * 255.0F));

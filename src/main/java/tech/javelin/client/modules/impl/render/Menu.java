@@ -5,6 +5,8 @@ import tech.javelin.client.modules.api.Category;
 import tech.javelin.client.modules.api.Module;
 import tech.javelin.client.modules.api.ModuleAnnotation;
 
+import tech.javelin.client.modules.api.setting.impl.NumberSetting;
+
 @ModuleAnnotation(
    name = "Menu",
    category = Category.RENDER,
@@ -12,6 +14,7 @@ import tech.javelin.client.modules.api.ModuleAnnotation;
 )
 public final class Menu extends Module {
    public static final Menu INSTANCE = new Menu();
+   public final NumberSetting guiScale = new NumberSetting("Размер меню", 2.0F, 1.0F, 3.0F, 0.1F);
 
    private Menu() {
       this.setKeyCode(344);
