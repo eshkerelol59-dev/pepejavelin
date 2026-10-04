@@ -61,10 +61,27 @@ public final class Aura extends Module {
    public static final Aura INSTANCE = new Aura();
    private final MultiBooleanSetting targetTypeSetting = MultiBooleanSetting.create("Атаковать", List.of("Игроков", "Мобов", "Животных"));
    public final ModeSetting rotationMode = new ModeSetting("Ротация", new String[0]);
-   private final ModeSetting.Value hvh;
+   private final ModeSetting.Value funTime;
+   private final ModeSetting.Value spookyTime;
+   private final ModeSetting.Value slimeWorld;
+   private final ModeSetting.Value reallyWorld;
    private final ModeSetting.Value lonyJir;
-   private final ModeSetting.Value cake;
-   private final ModeSetting.Value legendsGrief;
+   private final ModeSetting.Value neuro;
+   private final ModeSetting.Value hvh;
+   private final ModeSetting.Value shard;
+   private final ModeSetting.Value sloth;
+   private final ModeSetting.Value legit;
+   private final ModeSetting.Value vanilla;
+
+   public final ModeSetting typeSprint;
+   public final ModeSetting typeMove;
+   public final ModeSetting throughBlocks;
+   public final ModeSetting typeOtvodka;
+   public final BooleanSetting smartcriticals;
+   public final BooleanSetting maceCrits;
+   public final BooleanSetting autoSword;
+   public final BooleanSetting maxDamage;
+
    private final ModeSetting correction;
    private final ModeSetting.Value correctionFocus;
    private final ModeSetting.Value correctionGood;
@@ -87,10 +104,27 @@ public final class Aura extends Module {
    public float lastPitch;
 
    private Aura() {
-      this.hvh = new ModeSetting.Value(this.rotationMode, "Vanilla");
-      this.lonyJir = (new ModeSetting.Value(this.rotationMode, "LonyGrief")).select();
-      this.cake = (new ModeSetting.Value(this.rotationMode, "CakeWorld")).select();
-      this.legendsGrief = (new ModeSetting.Value(this.rotationMode, "LegendsGrief")).select();
+      this.funTime = (new ModeSetting.Value(this.rotationMode, "FunTime")).select();
+      this.spookyTime = new ModeSetting.Value(this.rotationMode, "SpookyTime");
+      this.slimeWorld = new ModeSetting.Value(this.rotationMode, "SlimeWorld");
+      this.reallyWorld = new ModeSetting.Value(this.rotationMode, "ReallyWorld");
+      this.lonyJir = new ModeSetting.Value(this.rotationMode, "LonyGrief");
+      this.neuro = new ModeSetting.Value(this.rotationMode, "Neuro");
+      this.hvh = new ModeSetting.Value(this.rotationMode, "HvH");
+      this.shard = new ModeSetting.Value(this.rotationMode, "Shard");
+      this.sloth = new ModeSetting.Value(this.rotationMode, "Sloth");
+      this.legit = new ModeSetting.Value(this.rotationMode, "Legit");
+      this.vanilla = new ModeSetting.Value(this.rotationMode, "Vanilla");
+
+      this.typeSprint = new ModeSetting("Тип спринта", new String[]{"Packet", "Silent", "Legit", "Off"});
+      this.typeMove = new ModeSetting("Коррекция движения", new String[]{"Сфокусированная", "Свободная", "Совмещенная", "Таргетированная"});
+      this.throughBlocks = new ModeSetting("Бить через блоки", new String[]{"Умная", "Выключено", "Неполноценные", "Полноценные"});
+      this.typeOtvodka = new ModeSetting("Тип отводки", new String[]{"Камера", "Плавная", "Space-Times"});
+      this.smartcriticals = new BooleanSetting("Умные криты", true);
+      this.maceCrits = new BooleanSetting("Крит булавы", true);
+      this.autoSword = new BooleanSetting("Авто-меч", true);
+      this.maxDamage = new BooleanSetting("Макс дамаг", false);
+
       this.correction = new ModeSetting("Коррекция", new String[0]);
       this.correctionFocus = new ModeSetting.Value(this.correction, "Фокус");
       this.correctionGood = (new ModeSetting.Value(this.correction, "Свободная")).select();
@@ -226,128 +260,33 @@ public final class Aura extends Module {
    public void eventRotate(EventGameUpdate e) {
       if (this.target != null) {
          Javelin.getInstance().getModuleManager().setAcceleration(0.0F);
+         if (this.rotationMode.getValue() != null) {
+            String currentModeName = this.rotationMode.getValue().getName();
+            for (tech.javelin.client.modules.impl.combat.aura.RotationType type : tech.javelin.client.modules.impl.combat.aura.RotationType.values()) {
+               if (currentModeName.equalsIgnoreCase(type.getName()) || currentModeName.equalsIgnoreCase(type.name())) {
+                  type.getRotation().onRotation(this, this.target, new float[]{this.distance.getCurrent(), this.distanceRotation.getCurrent()}, this.isCanAttack());
+                  return;
+               }
+            }
+         }
+
+         // Vanilla fallback
          Box box = this.target.getBoundingBox();
          Vec3d eyes = mc.player.getEyePos();
-         Vec3d point = this.hvh.isSelected() ? this.target.getBoundingBox().getCenter() : (this.legendsGrief.isSelected() ? MultipointUtils.getNearestPoint(this.target, (double)this.distance.getCurrent()) : MultipointUtils.getMultipoint(this.target, (double)this.distance.getCurrent()));
-         if (this.target instanceof PlayerEntity && this.predictOnElytra.isEnabled() && mc.player.isGliding() && this.target.isGliding()) {
-            point = PredictUtils.predict(this.target, this.target.getPos(), mc.player.getEyePos().distanceTo(this.target.getBoundingBox().getCenter()) > 8.0D ? 8.0F : this.predict.getCurrent());
-         }
-
+         Vec3d point = box.getCenter();
          Rotation angle = RotationUtil.fromVec3d(point.subtract(eyes));
-         float deltaYaw;
-         float deltaPitch;
-         float smooth;
-         float newYaw;
-         if (this.hvh.isSelected()) {
-            deltaYaw = MathHelper.wrapDegrees(angle.getYaw() - this.lastYaw);
-            deltaPitch = angle.getPitch() - this.lastPitch;
-            smooth = this.lastYaw + deltaYaw;
-            newYaw = this.lastPitch + deltaPitch;
-            smooth -= (smooth - this.lastYaw) % Rotation.gcd();
-            newYaw -= (newYaw - this.lastPitch) % Rotation.gcd();
-            Rotation smoothRot = new Rotation(smooth, newYaw);
-            RotationComponent.update(new Rotation(smoothRot.getYaw(), smoothRot.getPitch()), 360.0F, 360.0F, 360.0F, 360.0F, 0, 1, false);
-            this.lastYaw = smoothRot.getYaw();
-            this.lastPitch = smoothRot.getPitch();
-         }
 
-         Rotation smoothRot;
-         float deltaYaw2;
-         float deltaPitch2;
-         float newPitch;
-         if (this.lonyJir.isSelected()) {
-            if (mc.player.isGliding()) {
-               if (!this.isBack) {
-                  this.acceleration += 0.005F;
-                  if (this.acceleration >= 0.13F) {
-                     this.isBack = true;
-                  }
-               } else {
-                  if (this.acceleration >= -0.02F) {
-                     this.acceleration -= 0.005F;
-                  }
+         float deltaYaw = MathHelper.wrapDegrees(angle.getYaw() - this.lastYaw);
+         float deltaPitch = angle.getPitch() - this.lastPitch;
+         float smooth = this.lastYaw + deltaYaw;
+         float newYaw = this.lastPitch + deltaPitch;
+         smooth -= (smooth - this.lastYaw) % Rotation.gcd();
+         newYaw -= (newYaw - this.lastPitch) % Rotation.gcd();
 
-                  if (this.acceleration <= -0.02F) {
-                     this.isBack = false;
-                  }
-               }
-            } else if (!RaytracingUtil.rayTrace(mc.player.getRotationVector(), 1488.0D, this.target.getBoundingBox())) {
-               this.acceleration += 0.0015F;
-            } else if (this.acceleration > 0.0F) {
-               this.acceleration -= 0.01F;
-            }
-
-            deltaYaw = MathHelper.wrapDegrees(angle.getYaw() - this.lastYaw);
-            deltaPitch = angle.getPitch() - this.lastPitch;
-            smooth = Math.max(this.acceleration, 0.0F);
-            newYaw = this.lastYaw + deltaYaw * Math.min(Math.max(smooth, 0.0F), 1.0F);
-            newPitch = this.lastPitch + deltaPitch * Math.min(Math.max(smooth / 2.0F, 0.0F), 1.0F);
-            newYaw -= (newYaw - this.lastYaw) % Rotation.gcd();
-            newPitch -= (newPitch - this.lastPitch) % Rotation.gcd();
-            smoothRot = new Rotation(newYaw, newPitch);
-            deltaYaw2 = MathHelper.wrapDegrees(mc.gameRenderer.getCamera().getYaw() - this.lastYaw);
-            deltaPitch2 = mc.gameRenderer.getCamera().getPitch() - this.lastPitch;
-            if (mc.options.getPerspective() == Perspective.THIRD_PERSON_FRONT) {
-               deltaYaw2 = MathHelper.wrapDegrees(mc.gameRenderer.getCamera().getYaw() - 180.0F - this.lastYaw);
-               deltaPitch2 = -mc.gameRenderer.getCamera().getPitch() - this.lastPitch;
-            }
-
-            RotationComponent.update(new Rotation(smoothRot.getYaw(), smoothRot.getPitch()), 360.0F, 360.0F, !(Math.abs(deltaYaw2) > 3.0F) && !(Math.abs(deltaPitch2) > 3.0F) ? 360.0F : 0.0F, !(Math.abs(deltaYaw2) > 3.0F) && !(Math.abs(deltaPitch2) > 3.0F) ? 360.0F : 0.0F, 0, 1, false);
-            this.lastYaw = smoothRot.getYaw();
-            this.lastPitch = smoothRot.getPitch();
-         }
-
-         if (this.legendsGrief.isSelected() || this.cake.isSelected()) {
-            if (mc.player.isGliding() && this.target.isGliding()) {
-               if (this.isBack) {
-                  if (this.acceleration >= -0.02F) {
-                     this.acceleration -= Math.abs(MathHelper.wrapDegrees(angle.getYaw() - this.lastYaw)) > 80.0F ? 0.1F : 0.01F;
-                  }
-
-                  if (this.acceleration <= -0.02F) {
-                     this.isBack = false;
-                  }
-               } else {
-                  this.acceleration += 0.004F;
-                  if (this.acceleration >= 0.17F || RaytracingUtil.rayTrace(mc.player.getRotationVector(), 1488.0D, box.offset(mc.player.isGliding() && this.target instanceof PlayerEntity && this.target.isGliding() ? PredictUtils.predict(this.target, this.target.getPos(), this.predict.getCurrent()) : Vec3d.ZERO))) {
-                     this.isBack = true;
-                  }
-               }
-            } else if (this.isBack) {
-               if (this.acceleration >= -0.01F) {
-                  this.acceleration -= Math.abs(MathHelper.wrapDegrees(angle.getYaw() - this.lastYaw)) > 80.0F ? 0.1F : 0.01F;
-               }
-
-               if (this.acceleration <= -0.01F) {
-                  this.isBack = false;
-               }
-            } else {
-               this.acceleration += 0.004F;
-               if (this.acceleration >= 0.18F || RaytracingUtil.rayTrace(mc.player.getRotationVector(), 999.0D, box.offset(mc.player.isGliding() && this.target instanceof PlayerEntity && this.target.isGliding() ? PredictUtils.predict(this.target, this.target.getPos(), this.predict.getCurrent()) : Vec3d.ZERO).expand(-0.5D))) {
-                  this.isBack = true;
-               }
-            }
-
-            deltaYaw = MathHelper.wrapDegrees(angle.getYaw() - this.lastYaw);
-            deltaPitch = angle.getPitch() - this.lastPitch;
-            smooth = Math.max(this.acceleration, 0.0F);
-            newYaw = this.lastYaw + deltaYaw * Math.min(Math.max(smooth, 0.0F), 1.0F);
-            newPitch = this.lastPitch + deltaPitch * Math.min(Math.max(smooth / 2.0F, 0.0F), 1.0F);
-            newYaw -= (newYaw - this.lastYaw) % Rotation.gcd();
-            newPitch -= (newPitch - this.lastPitch) % Rotation.gcd();
-            smoothRot = new Rotation(newYaw, newPitch);
-            deltaYaw2 = MathHelper.wrapDegrees(mc.gameRenderer.getCamera().getYaw() - this.lastYaw);
-            deltaPitch2 = mc.gameRenderer.getCamera().getPitch() - this.lastPitch;
-            if (mc.options.getPerspective() == Perspective.THIRD_PERSON_FRONT) {
-               deltaYaw2 = MathHelper.wrapDegrees(mc.gameRenderer.getCamera().getYaw() - 180.0F - this.lastYaw);
-               deltaPitch2 = -mc.gameRenderer.getCamera().getPitch() - this.lastPitch;
-            }
-
-            RotationComponent.update(new Rotation(smoothRot.getYaw(), smoothRot.getPitch()), 360.0F, 360.0F, !(Math.abs(deltaYaw2) > 3.0F) && !(Math.abs(deltaPitch2) > 3.0F) ? 360.0F : 0.0F, !(Math.abs(deltaYaw2) > 3.0F) && !(Math.abs(deltaPitch2) > 3.0F) ? 360.0F : 0.0F, 0, 1, false);
-            this.lastYaw = smoothRot.getYaw();
-            this.lastPitch = smoothRot.getPitch();
-         }
-
+         Rotation smoothRot = new Rotation(smooth, newYaw);
+         RotationComponent.update(new Rotation(smoothRot.getYaw(), smoothRot.getPitch()), 360.0F, 360.0F, 360.0F, 360.0F, 0, 1, false);
+         this.lastYaw = smoothRot.getYaw();
+         this.lastPitch = smoothRot.getPitch();
       }
    }
 
