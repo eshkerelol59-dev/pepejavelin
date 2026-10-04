@@ -14,7 +14,9 @@ import tech.javelin.base.events.impl.input.EventSetScreen;
 import tech.javelin.base.events.impl.other.EventWindowResize;
 import tech.javelin.base.events.impl.player.EventUpdate;
 import tech.javelin.base.events.impl.render.EventHudRender;
+import tech.javelin.client.hud.elements.component.HootBarComponent;
 import tech.javelin.client.hud.elements.component.InformationComponent;
+import tech.javelin.client.hud.elements.component.InventoryComponent;
 import tech.javelin.client.hud.elements.component.KeybindsComponent;
 import tech.javelin.client.hud.elements.component.NotifyComponent;
 import tech.javelin.client.hud.elements.component.PotionsComponent;
@@ -25,6 +27,7 @@ import tech.javelin.client.hud.elements.draggable.DraggableHudElement;
 import tech.javelin.client.modules.api.Category;
 import tech.javelin.client.modules.api.Module;
 import tech.javelin.client.modules.api.ModuleAnnotation;
+import tech.javelin.client.modules.api.setting.impl.ModeSetting;
 import tech.javelin.client.modules.api.setting.impl.MultiBooleanSetting;
 import tech.javelin.utility.math.MathUtil;
 import tech.javelin.utility.render.display.Render2DUtil;
@@ -38,7 +41,8 @@ import tech.javelin.utility.render.display.base.GuiUtil;
 )
 public final class Interface extends Module {
    public static final Interface INSTANCE = new Interface();
-   private final MultiBooleanSetting elementsSetting = MultiBooleanSetting.create("Элементы", List.of("Ватермарка", "Эффекты", "Модераторы", "Уведомления", "Информация", "Бинды", "Таргет худ"));
+   private final ModeSetting modeSetting = new ModeSetting("Режим", "Javelin", "Minced");
+   private final MultiBooleanSetting elementsSetting = MultiBooleanSetting.create("Элементы", List.of("Ватермарка", "Эффекты", "Модераторы", "Уведомления", "Информация", "Бинды", "Таргет худ", "Инвентарь", "Хотбар"));
    private final List<DraggableHudElement> elements = new ArrayList();
    private DraggableHudElement draggingElement = null;
    private float dragOffsetX;
@@ -55,6 +59,12 @@ public final class Interface extends Module {
       this.addElement(new InformationComponent("Information", 0.0F, 0.0F, 960.0F, 495.5F, 10.0F, 41.5F, DraggableHudElement.Align.TOP_LEFT));
       this.addElement(new KeybindsComponent("Keybinds", 349.0F, 0.0F, 960.0F, 495.5F, -122.0F, 73.0F, DraggableHudElement.Align.TOP_RIGHT));
       this.addElement(new TargetHudComponent("TargetHUD", 166.5F, 128.5F, 960.0F, 495.5F, 0.0F, 31.75F, DraggableHudElement.Align.CENTER));
+      this.addElement(new InventoryComponent("Inventory", 0.0F, 0.0F, 960.0F, 495.5F, 10.0F, 150.0F, DraggableHudElement.Align.TOP_LEFT));
+      this.addElement(new HootBarComponent("Hotbar", 0.0F, 0.0F, 960.0F, 495.5F, 0.0F, -24.0F, DraggableHudElement.Align.BOTTOM_CENTER));
+   }
+
+   public ModeSetting getModeSetting() {
+      return this.modeSetting;
    }
 
    public void onEnable() {
@@ -90,7 +100,6 @@ public final class Interface extends Module {
             }
          }
       }
-
    }
 
    private void addElement(DraggableHudElement element) {
@@ -132,7 +141,6 @@ public final class Interface extends Module {
          double mouseY = (double)mousePos.getY();
          this.draggingElement.set(ctx, (float)mouseX - this.dragOffsetX, (float)mouseY - this.dragOffsetY, this, width, height);
       }
-
    }
 
    private boolean shouldRender(DraggableHudElement element) {
@@ -143,8 +151,10 @@ public final class Interface extends Module {
    @EventTarget
    public void onMouse(EventMouse event) {
       if (!(mc.currentScreen instanceof ChatScreen)) {
-         this.draggingElement.release();
-         this.draggingElement = null;
+         if (this.draggingElement != null) {
+            this.draggingElement.release();
+            this.draggingElement = null;
+         }
       } else {
          Vector2f mousePos = GuiUtil.getMouse((double)this.getCustomScale());
          double mouseX = (double)mousePos.getX();
@@ -163,11 +173,10 @@ public final class Interface extends Module {
                   break;
                }
             }
-         } else if (event.getAction() == 0) {
+         } else if (event.getAction() == 0 && this.draggingElement != null) {
             this.draggingElement.release();
             this.draggingElement = null;
          }
-
       }
    }
 
@@ -252,7 +261,9 @@ public final class Interface extends Module {
    }
 
    public boolean isEnableHotBar() {
-      return false;
+      int hotbarIndex = 8;
+      return (modeSetting.is("Minced") || (hotbarIndex < elementsSetting.getBooleanSettings().size() && elementsSetting.getBooleanSettings().get(hotbarIndex).isEnabled()))
+              && hotbarIndex < elementsSetting.getBooleanSettings().size() && elementsSetting.getBooleanSettings().get(hotbarIndex).isEnabled();
    }
 
    public boolean isEnableTab() {
@@ -269,7 +280,6 @@ public final class Interface extends Module {
          DraggableHudElement element = (DraggableHudElement)var4.next();
          element.windowResized(width, height);
       }
-
    }
 
    @EventTarget
@@ -291,7 +301,6 @@ public final class Interface extends Module {
          DraggableHudElement draggableHudElement = (DraggableHudElement)var2.next();
          draggableHudElement.tick();
       }
-
    }
 
    @EventTarget
@@ -299,7 +308,6 @@ public final class Interface extends Module {
       if (event.getScreen() instanceof ChatScreen) {
          this.init = System.currentTimeMillis();
       }
-
    }
 
    public int getGlowRadius() {

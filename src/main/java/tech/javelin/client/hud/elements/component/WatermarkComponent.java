@@ -10,6 +10,7 @@ import tech.javelin.base.font.MsdfFont;
 import tech.javelin.base.theme.Theme;
 import tech.javelin.client.hud.elements.draggable.DraggableHudElement;
 import tech.javelin.client.modules.impl.misc.NameProtect;
+import tech.javelin.client.modules.impl.render.Interface;
 import tech.javelin.utility.render.display.base.BorderRadius;
 import tech.javelin.utility.render.display.base.CustomDrawContext;
 import tech.javelin.utility.render.display.base.color.ColorRGBA;
@@ -22,6 +23,15 @@ public class WatermarkComponent extends DraggableHudElement {
 
    @Native
    public void render(CustomDrawContext ctx) {
+      if (Interface.INSTANCE.getModeSetting().is("Minced")) {
+         this.renderMinced(ctx);
+      } else {
+         this.renderJavelin(ctx);
+      }
+   }
+
+   @Native
+   private void renderJavelin(CustomDrawContext ctx) {
       float x = this.getX();
       float y = this.getY();
       Theme theme = Javelin.getInstance().getThemeManager().getCurrentTheme();
@@ -64,5 +74,74 @@ public class WatermarkComponent extends DraggableHudElement {
       ctx.drawText(Fonts.REGULAR.getFont(7.25F), String.format("%.1f", Javelin.getInstance().getServerHandler().getTPS()).replace(",", ".") + "tps", x2 + 19.0F, y2 + 3.25F, new ColorRGBA(255, 255, 255, 255));
       this.width = width;
       this.height = 29.0F;
+   }
+
+   @Native
+   private void renderMinced(CustomDrawContext ctx) {
+      float x = this.getX();
+      float y = this.getY();
+      float height = 17.0F;
+      float iconSize = 9.0F;
+      float firstIconSize = 15.0F;
+      float firstIconOffsetX = -3.0F;
+      float firstIconOffsetY = -0.5F;
+      float mincedTextOffsetX = -2.0F;
+      float famousIconOffsetX = -2.0F;
+      float famousIconOffsetY = 0.5F;
+      float famousTextOffsetX = -3.0F;
+      float ipIconOffsetX = -4.0F;
+      float ipIconOffsetY = 0.5F;
+      float ipTextOffsetX = -2.0F;
+      float fpsIconOffsetX = -4.0F;
+      float fpsIconOffsetY = 0.5F;
+      float fpsTextOffsetX = -2.5F;
+      float textSize = 7.0F;
+      float leftPadding = 6.0F;
+      float rightPadding = 2.0F;
+      float iconTextGap = 2.0F;
+      float segmentGap = 6.0F;
+      Theme theme = Javelin.getInstance().getThemeManager().getCurrentTheme();
+      String leftIcon = "a";
+      String leftText = "Minced";
+      String middleIcon = "n";
+      String middleText = "famous";
+      String ipIcon = "o";
+      String serverIp = mc.getNetworkHandler() != null && mc.getNetworkHandler().getServerInfo() != null
+         ? mc.getNetworkHandler().getServerInfo().address : "singleplayer";
+      String fpsIcon = "p";
+      String fpsText = "FPS: " + mc.getCurrentFps();
+
+      float leftSegmentWidth = Fonts.MINCED1.getWidth(leftIcon, firstIconSize) + iconTextGap + Fonts.MEDIUM.getWidth(leftText, textSize);
+      float middleSegmentWidth = Fonts.MINCED.getWidth(middleIcon, iconSize) + iconTextGap + Fonts.MEDIUM.getWidth(middleText, textSize);
+      float ipSegmentWidth = Fonts.MINCED.getWidth(ipIcon, iconSize) + iconTextGap + Fonts.MEDIUM.getWidth(serverIp, textSize);
+      float fpsSegmentWidth = Fonts.MINCED.getWidth(fpsIcon, iconSize) + iconTextGap + Fonts.MEDIUM.getWidth(fpsText, textSize);
+      float panelWidth = leftPadding + leftSegmentWidth + segmentGap + middleSegmentWidth + segmentGap + ipSegmentWidth + segmentGap + fpsSegmentWidth + rightPadding;
+
+      DrawUtil.drawBlur(ctx.getMatrices(), x, y, panelWidth, height, 11.0F, BorderRadius.all(3.0F), new ColorRGBA(40, 40, 40, 255));
+      float iconY = y + 5.2F;
+      float textY = y + 5.5F;
+      float drawX = x + leftPadding;
+
+      ctx.drawText(Fonts.MINCED1.getFont(firstIconSize), leftIcon, drawX + firstIconOffsetX, y + 4.8F + firstIconOffsetY, theme.getColor());
+      drawX += Fonts.MINCED1.getWidth(leftIcon, firstIconSize) + iconTextGap;
+      ctx.drawText(Fonts.MEDIUM.getFont(textSize), leftText, drawX + mincedTextOffsetX, textY, ColorRGBA.WHITE);
+      drawX += Fonts.MEDIUM.getWidth(leftText, textSize) + segmentGap;
+
+      ctx.drawText(Fonts.MINCED.getFont(iconSize), middleIcon, drawX + famousIconOffsetX, iconY + famousIconOffsetY, theme.getColor());
+      drawX += Fonts.MINCED.getWidth(middleIcon, iconSize) + iconTextGap;
+      ctx.drawText(Fonts.MEDIUM.getFont(textSize), middleText, drawX + famousTextOffsetX, textY, ColorRGBA.WHITE);
+      drawX += Fonts.MEDIUM.getWidth(middleText, textSize) + segmentGap;
+
+      ctx.drawText(Fonts.MINCED.getFont(iconSize), ipIcon, drawX + ipIconOffsetX, iconY + ipIconOffsetY, theme.getColor());
+      drawX += Fonts.MINCED.getWidth(ipIcon, iconSize) + iconTextGap;
+      ctx.drawText(Fonts.MEDIUM.getFont(textSize), serverIp, drawX + ipTextOffsetX, textY, ColorRGBA.WHITE);
+      drawX += Fonts.MEDIUM.getWidth(serverIp, textSize) + segmentGap;
+
+      ctx.drawText(Fonts.MINCED.getFont(iconSize), fpsIcon, drawX + fpsIconOffsetX, iconY + fpsIconOffsetY, theme.getColor());
+      drawX += Fonts.MINCED.getWidth(fpsIcon, iconSize) + iconTextGap;
+      ctx.drawText(Fonts.MEDIUM.getFont(textSize), fpsText, drawX + fpsTextOffsetX, textY, ColorRGBA.WHITE);
+
+      this.width = panelWidth;
+      this.height = height;
    }
 }

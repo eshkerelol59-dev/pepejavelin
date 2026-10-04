@@ -10,6 +10,7 @@ import tech.javelin.base.font.Fonts;
 import tech.javelin.base.theme.Theme;
 import tech.javelin.client.hud.elements.draggable.DraggableHudElement;
 import tech.javelin.client.modules.api.Module;
+import tech.javelin.client.modules.impl.render.Interface;
 import tech.javelin.utility.render.display.Keyboard;
 import tech.javelin.utility.render.display.base.BorderRadius;
 import tech.javelin.utility.render.display.base.CustomDrawContext;
@@ -30,6 +31,15 @@ public class KeybindsComponent extends DraggableHudElement {
 
    @Native
    public void render(CustomDrawContext ctx) {
+      if (Interface.INSTANCE.getModeSetting().is("Minced")) {
+         this.renderMinced(ctx);
+      } else {
+         this.renderJavelin(ctx);
+      }
+   }
+
+   @Native
+   private void renderJavelin(CustomDrawContext ctx) {
       float posX = this.getX();
       float posY = this.getY();
       float defaultWidth = 53.0F;
@@ -98,6 +108,114 @@ public class KeybindsComponent extends DraggableHudElement {
 
       this.widthAnimation.update(defaultWidth);
       this.width = this.widthAnimation.getValue();
+      this.height = height;
+   }
+
+   @Native
+   private void renderMinced(CustomDrawContext ctx) {
+      float posX = this.getX();
+      float posY = this.getY();
+      float headerHeight = 17.0F;
+      float rowHeight = 14.0F;
+      float rowSpacing = 1.5F;
+      float rowGap = 2.0F;
+      float defaultWidth = 0.0F;
+      float moduleIconLeftPadding = 5.0F;
+      float moduleRightPadding = 6.0F;
+      float titleX = 6.0F;
+      float iconRightPadding = 3.0F;
+      float bindRightPadding = 0.0F;
+      float headerGap = 4.0F;
+      String headerTitle = "Keybinds";
+      String headerIcon = "t";
+      float height = headerHeight;
+      boolean isFound = false;
+      Iterator var7 = Javelin.getInstance().getModuleManager().getModules().iterator();
+
+      while(var7.hasNext()) {
+         Module module = (Module)var7.next();
+         if (module.getAnimation().getValue() != 0.0F && module.getKeyCode() != -1) {
+            isFound = true;
+            break;
+         }
+      }
+
+      if (isFound || mc.currentScreen instanceof ChatScreen) {
+         this.alpha.update(1.0F);
+      } else {
+         this.alpha.update(0.0F);
+      }
+
+      Theme theme = Javelin.getInstance().getThemeManager().getCurrentTheme();
+      float titleWidth = Fonts.MEDIUM.getWidth(headerTitle, 8.0F);
+      float headerIconWidth = Fonts.MINCED.getWidth(headerIcon, 10.0F);
+      float headerContentWidth = titleX + titleWidth + headerGap + headerIconWidth + iconRightPadding;
+      defaultWidth = Math.max(defaultWidth, headerContentWidth);
+      float bindWidth = 0.0F;
+      Iterator var9 = Javelin.getInstance().getModuleManager().getModules().iterator();
+
+      Module module;
+      while(var9.hasNext()) {
+         module = (Module)var9.next();
+         if (module.getAnimation().getValue() != 0.0F && module.getKeyCode() != -1) {
+            float localBindWidth = Fonts.MEDIUM.getWidth(Keyboard.getKeyName(module.getKeyCode()), 6.75F);
+            if (localBindWidth > bindWidth) {
+               bindWidth = localBindWidth;
+            }
+         }
+      }
+
+      this.xLine.update(bindWidth);
+      var9 = Javelin.getInstance().getModuleManager().getModules().iterator();
+
+      float maxFunctionWidth = 0.0F;
+      while(var9.hasNext()) {
+         module = (Module)var9.next();
+         if (module.getAnimation().getValue() != 0.0F && module.getKeyCode() != -1) {
+            float rowAnim = module.getAnimation().getValue();
+            height += (rowHeight + rowSpacing) * rowAnim;
+            String moduleName = module.getName();
+            float functionWidth = moduleIconLeftPadding + Fonts.REGULAR.getWidth(moduleName, 7.0F) + moduleRightPadding;
+            if (functionWidth > maxFunctionWidth) {
+               maxFunctionWidth = functionWidth;
+            }
+         }
+      }
+
+      float functionBoxWidth = Math.max(12.0F, maxFunctionWidth);
+      float bindBoxWidth = Math.max(12.0F, this.xLine.getValue() + 6.0F);
+      float totalWidth = functionBoxWidth + rowGap + bindBoxWidth + bindRightPadding;
+      this.widthAnimation.update(Math.max(defaultWidth, totalWidth));
+      float panelWidth = this.widthAnimation.getValue();
+      DrawUtil.drawBlur(ctx.getMatrices(), posX, posY, panelWidth, headerHeight, 11.0F, BorderRadius.all(3.0F), new ColorRGBA(40, 40, 40, 255.0F * this.alpha.getValue()));
+      float iconX = posX + panelWidth - iconRightPadding - headerIconWidth;
+      ctx.drawText(Fonts.MINCED.getFont(10.0F), headerIcon, iconX, posY + 5.8F, theme.getColor().withAlpha(255.0F * this.alpha.getValue()));
+      ctx.drawText(Fonts.MEDIUM.getFont(8.0F), headerTitle, posX + titleX, posY + 5.5F, ColorRGBA.WHITE.withAlpha(255.0F * this.alpha.getValue()));
+      float currentY = posY + headerHeight + rowSpacing;
+      var9 = Javelin.getInstance().getModuleManager().getModules().iterator();
+
+      while(var9.hasNext()) {
+         module = (Module)var9.next();
+         if (module.getAnimation().getValue() != 0.0F && module.getKeyCode() != -1) {
+            String bind = Keyboard.getKeyName(module.getKeyCode());
+            String moduleName = module.getName();
+            float rowAnim = module.getAnimation().getValue();
+            float rowAlpha = rowAnim * this.alpha.getValue();
+            float rowOffset = (1.0F - rowAnim) * 3.0F;
+            float rowY = currentY + rowOffset;
+            float bindBoxX = posX + panelWidth - bindBoxWidth - bindRightPadding - 1.0F;
+            float functionWidth = Math.max(12.0F, bindBoxX - posX - rowGap);
+            DrawUtil.drawBlur(ctx.getMatrices(), posX, rowY, functionWidth, rowHeight, 9.0F, BorderRadius.all(2.5F), new ColorRGBA(72, 72, 72, 255.0F * rowAlpha));
+            DrawUtil.drawBlur(ctx.getMatrices(), bindBoxX, rowY, bindBoxWidth, rowHeight, 9.0F, BorderRadius.all(2.5F), new ColorRGBA(72, 72, 72, 255.0F * rowAlpha));
+            float textX = posX + moduleIconLeftPadding;
+            ctx.drawText(Fonts.MEDIUM.getFont(7.0F), moduleName, textX, rowY + 4.2F, ColorRGBA.WHITE.withAlpha(rowAlpha * 255.0F));
+            float bindX = bindBoxX + (bindBoxWidth - Fonts.MEDIUM.getWidth(bind, 7.0F)) / 1.8F;
+            ctx.drawText(Fonts.MEDIUM.getFont(7.0F), bind, bindX, rowY + 4.5F, ColorRGBA.WHITE.withAlpha(rowAlpha * 255.0F));
+            currentY += (rowHeight + rowSpacing) * rowAnim;
+         }
+      }
+
+      this.width = panelWidth;
       this.height = height;
    }
 }

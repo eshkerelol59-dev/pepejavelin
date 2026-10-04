@@ -24,6 +24,7 @@ import tech.javelin.base.animations.base.Easing;
 import tech.javelin.base.font.Fonts;
 import tech.javelin.base.theme.Theme;
 import tech.javelin.client.hud.elements.draggable.DraggableHudElement;
+import tech.javelin.client.modules.impl.render.Interface;
 import tech.javelin.utility.render.display.base.BorderRadius;
 import tech.javelin.utility.render.display.base.CustomDrawContext;
 import tech.javelin.utility.render.display.base.color.ColorRGBA;
@@ -47,6 +48,102 @@ public class StaffComponent extends DraggableHudElement {
 
    @Native
    public void render(CustomDrawContext ctx) {
+      if (Interface.INSTANCE.getModeSetting().is("Minced")) {
+         this.renderMinced(ctx);
+      } else {
+         this.renderJavelin(ctx);
+      }
+   }
+
+   @Native
+   private void renderJavelin(CustomDrawContext ctx) {
+      long currentTime = System.currentTimeMillis();
+      if (currentTime - this.lastStaffUpdate > 50L && mc.getNetworkHandler() != null) {
+         this.updateStaffList();
+         this.lastStaffUpdate = currentTime;
+      }
+
+      if (currentTime - this.lastSkinCacheClear > 30000L) {
+         this.skinTextureCache.clear();
+         this.lastSkinCacheClear = currentTime;
+      }
+
+      this.modules.entrySet().removeIf((entry) -> {
+         return ((StaffComponent.StaffModule)entry.getValue()).isDelete();
+      });
+      float posX = this.getX();
+      float posY = this.getY();
+      float defaultWidth = 51.0F;
+      float height = 14.5F;
+      boolean isFound = false;
+      Iterator var9 = this.modules.entrySet().iterator();
+
+      while(var9.hasNext()) {
+         Entry<String, StaffComponent.StaffModule> module = (Entry)var9.next();
+         ((StaffComponent.StaffModule)module.getValue()).animation.update(this.currentStaffKeys.contains(module.getKey()));
+         if (((StaffComponent.StaffModule)module.getValue()).animation.getValue() != 0.0F) {
+            this.alpha.update(1.0F);
+            isFound = true;
+         }
+      }
+
+      if (!isFound && !(mc.currentScreen instanceof ChatScreen)) {
+         this.alpha.update(0.0F);
+      }
+
+      if (mc.currentScreen instanceof ChatScreen) {
+         this.alpha.update(1.0F);
+      }
+
+      Theme theme = Javelin.getInstance().getThemeManager().getCurrentTheme();
+      DrawUtil.drawBlur(ctx.getMatrices(), posX, posY, this.widthAnimation.getValue(), 14.5F, 11.0F, BorderRadius.all(3.0F), new ColorRGBA(80, 80, 80, 255.0F * this.alpha.getValue()));
+      DrawUtil.drawRoundedRect(ctx.getMatrices(), posX + 15.0F, posY + 1.5F, 0.5F, 12.25F, BorderRadius.all(0.0F), new ColorRGBA(166, 166, 166, 255.0F * this.alpha.getValue()));
+      ctx.drawText(Fonts.ICONS2.getFont(7.0F), "\uf728", posX + 5.0F, posY + 4.75F, theme.getColor().withAlpha(255.0F * this.alpha.getValue()));
+      ctx.drawText(Fonts.REGULAR.getFont(7.0F), "StaffList", posX + 19.5F, posY + 4.75F, (new ColorRGBA(-1)).withAlpha(255.0F * this.alpha.getValue()));
+      posY += 14.5F;
+      Iterator var16 = this.modules.entrySet().iterator();
+
+      while(var16.hasNext()) {
+         Entry<String, StaffComponent.StaffModule> module = (Entry)var16.next();
+         if (((StaffComponent.StaffModule)module.getValue()).animation.getValue() != 0.0F) {
+            height += 11.0F;
+            Identifier skinTexture = (Identifier)this.skinTextureCache.get(((StaffComponent.StaffModule)module.getValue()).name);
+            if (skinTexture == null && mc.getNetworkHandler() != null) {
+               PlayerListEntry player = (PlayerListEntry)mc.getNetworkHandler().getPlayerList().stream().filter((p) -> {
+                  return p.getProfile() != null && ((StaffComponent.StaffModule)module.getValue()).name.equals(p.getProfile().getName());
+               }).findFirst().orElse(null);
+               if (player != null && player.getSkinTextures() != null) {
+                  skinTexture = player.getSkinTextures().texture();
+                  this.skinTextureCache.put(((StaffComponent.StaffModule)module.getValue()).name, skinTexture);
+               }
+            }
+
+            if (skinTexture == null) {
+               skinTexture = DefaultSkinHelper.getSteve().texture();
+            }
+
+            Text prefix = ((StaffComponent.StaffModule)module.getValue()).displayNameText;
+            float elementsWidth = Fonts.REGULAR.getWidth(prefix.getString(), 6.75F) + 28.0F;
+            DrawUtil.drawBlur(ctx.getMatrices(), posX, posY + ((StaffComponent.StaffModule)module.getValue()).animation.getValue() * 3.0F - 3.0F, this.widthAnimation.getValue(), 11.0F, 11.0F, BorderRadius.all(3.0F), new ColorRGBA(80, 80, 80, 255.0F * ((StaffComponent.StaffModule)module.getValue()).animation.getValue() * this.alpha.getValue()));
+            DrawUtil.drawRoundedRect(ctx.getMatrices(), posX + this.widthAnimation.getValue() - 10.5F, posY + ((StaffComponent.StaffModule)module.getValue()).animation.getValue() * 3.0F - 3.0F + 1.5F, 0.5F, 8.75F, BorderRadius.all(0.0F), new ColorRGBA(166, 166, 166, 255.0F * ((StaffComponent.StaffModule)module.getValue()).animation.getValue() * this.alpha.getValue()));
+            DrawUtil.drawRoundedRect(ctx.getMatrices(), posX + this.widthAnimation.getValue() - 7.5F, posY + ((StaffComponent.StaffModule)module.getValue()).animation.getValue() * 3.0F - 3.0F + 3.5F, 4.0F, 4.0F, BorderRadius.all(2.0F), ((StaffComponent.StaffModule)module.getValue()).status == StaffComponent.Status.NONE ? new ColorRGBA(32, 255, 32, 255.0F * ((StaffComponent.StaffModule)module.getValue()).animation.getValue() * this.alpha.getValue()) : new ColorRGBA(255, 32, 32, 255.0F * ((StaffComponent.StaffModule)module.getValue()).animation.getValue() * this.alpha.getValue()));
+            DrawUtil.drawPlayerHeadWithRoundedShader(ctx.getMatrices(), skinTexture, posX + 2.5F, posY + ((StaffComponent.StaffModule)module.getValue()).animation.getValue() * 3.0F - 3.0F + 2.25F, 6.5F, BorderRadius.all(2.0F), ColorRGBA.WHITE.withAlpha(((StaffComponent.StaffModule)module.getValue()).animation.getValue() * 255.0F));
+            ctx.drawText(Fonts.REGULAR.getFont(6.5F), prefix, posX + 11.5F, posY + ((StaffComponent.StaffModule)module.getValue()).animation.getValue() * 3.0F - 3.0F + 3.5F, ((StaffComponent.StaffModule)module.getValue()).animation.getValue() * 255.0F * this.alpha.getValue());
+            if (elementsWidth > defaultWidth) {
+               defaultWidth = elementsWidth;
+            }
+
+            posY += 11.0F * ((StaffComponent.StaffModule)module.getValue()).animation.getValue();
+         }
+      }
+
+      this.widthAnimation.update(defaultWidth);
+      this.width = this.widthAnimation.getValue();
+      this.height = height;
+   }
+
+   @Native
+   private void renderMinced(CustomDrawContext ctx) {
       long currentTime = System.currentTimeMillis();
       if (currentTime - this.lastStaffUpdate > 50L && mc.getNetworkHandler() != null) {
          this.updateStaffList();
@@ -226,7 +323,6 @@ public class StaffComponent extends DraggableHudElement {
       NONE,
       VANISHED;
 
-   
       private static StaffComponent.Status[] $values() {
          return new StaffComponent.Status[]{NONE, VANISHED};
       }

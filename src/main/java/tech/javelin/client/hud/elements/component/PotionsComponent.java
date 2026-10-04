@@ -20,6 +20,7 @@ import tech.javelin.base.font.Fonts;
 import tech.javelin.base.theme.Theme;
 import tech.javelin.client.hud.elements.draggable.DraggableHudElement;
 import tech.javelin.client.modules.api.setting.impl.BooleanSetting;
+import tech.javelin.client.modules.impl.render.Interface;
 import tech.javelin.utility.render.display.base.BorderRadius;
 import tech.javelin.utility.render.display.base.CustomDrawContext;
 import tech.javelin.utility.render.display.base.color.ColorRGBA;
@@ -48,6 +49,15 @@ public class PotionsComponent extends DraggableHudElement {
 
    @Native
    public void render(CustomDrawContext ctx) {
+      if (Interface.INSTANCE.getModeSetting().is("Minced")) {
+         this.renderMinced(ctx);
+      } else {
+         this.renderJavelin(ctx);
+      }
+   }
+
+   @Native
+   private void renderJavelin(CustomDrawContext ctx) {
       if (mc.player != null) {
          this.updatePotions();
          float posX = this.getX();
@@ -141,6 +151,136 @@ public class PotionsComponent extends DraggableHudElement {
 
          this.widthAnimation.update(defaultWidth);
          this.width = this.widthAnimation.getValue();
+         this.height = height;
+      }
+   }
+
+   @Native
+   private void renderMinced(CustomDrawContext ctx) {
+      if (mc.player != null) {
+         this.updatePotions();
+         float posX = this.getX();
+         float posY = this.getY();
+         float headerHeight = 17.0F;
+         float rowHeight = 14.0F;
+         float rowSpacing = 1.0F;
+         float rowGap = 2.0F;
+         float rowTextLeftPadding = 3.5F;
+         float rowTextRightPadding = 3.5F;
+         float effectIconSize = 7.0F;
+         float iconToArrowGap = 1.5F;
+         float arrowToTextGap = 0.0F;
+         float textNudgeLeft = 1.0F;
+         float leftBlurExtraWidth = 2.0F;
+         float titleX = 6.0F;
+         float iconRightPadding = 4.0F;
+         float bindRightPadding = 0.0F;
+         float headerGap = 4.0F;
+         String headerTitle = "Potions";
+         String headerIcon = "u";
+         String rowArrowIcon = "z";
+         float rowArrowSize = 8.5F;
+         float defaultWidth = 0.0F;
+         float height = headerHeight;
+         this.potionItems.sort(Comparator.comparing((pi) -> {
+            return pi.name;
+         }));
+         boolean isFound = false;
+         float maxLeftWidth = 0.0F;
+         float maxDurationWidth = 0.0F;
+         Iterator var8 = this.potionItems.iterator();
+
+         String duration;
+         while(var8.hasNext()) {
+            PotionsComponent.PotionItem item = (PotionsComponent.PotionItem)var8.next();
+            item.animation.update(item.active);
+            if (item.animation.getValue() != 0.0F) {
+               String name = I18n.translate(item.name, new Object[0]);
+               String amp = this.getAmplifierText(item.amplifier);
+               duration = this.formatDuration(item.durationTicks);
+               float ampWidth = amp.equals("1") ? 0.0F : Fonts.MEDIUM.getWidth(amp, 7.0F) + 2.5F;
+               float nameWidth = Fonts.MEDIUM.getWidth(name, 7.0F) + ampWidth;
+               float arrowWidth = Fonts.MINCED.getWidth(rowArrowIcon, rowArrowSize);
+               float leftDisplayWidth = effectIconSize + iconToArrowGap + arrowWidth + arrowToTextGap + nameWidth;
+               float leftBoxWidth = rowTextLeftPadding + leftDisplayWidth + rowTextRightPadding + leftBlurExtraWidth;
+               if (leftBoxWidth > maxLeftWidth) {
+                  maxLeftWidth = leftBoxWidth;
+               }
+
+               float durationWidth = Fonts.MEDIUM.getWidth(duration, 7.0F);
+               if (durationWidth > maxDurationWidth) {
+                  maxDurationWidth = durationWidth;
+               }
+
+               height += (rowHeight + rowSpacing) * item.animation.getValue();
+               this.alpha.update(1.0F);
+               isFound = true;
+            }
+         }
+
+         this.xLine.update(maxDurationWidth);
+         if (!isFound && !(mc.currentScreen instanceof ChatScreen)) {
+            this.alpha.update(0.0F);
+         }
+
+         if (mc.currentScreen instanceof ChatScreen) {
+            this.alpha.update(1.0F);
+         }
+
+         Theme theme = Javelin.getInstance().getThemeManager().getCurrentTheme();
+         float titleWidth = Fonts.MEDIUM.getWidth(headerTitle, 8.0F);
+         float headerIconWidth = Fonts.MINCED.getWidth(headerIcon, 9.0F);
+         float headerContentWidth = titleX + titleWidth + headerGap + headerIconWidth + iconRightPadding;
+         defaultWidth = Math.max(defaultWidth, headerContentWidth);
+         float leftColumnWidth = Math.max(12.0F, maxLeftWidth);
+         float durationBoxWidth = Math.max(12.0F, this.xLine.getValue() + 6.0F);
+         float totalWidth = leftColumnWidth + rowGap + durationBoxWidth + bindRightPadding;
+         this.widthAnimation.update(Math.max(defaultWidth, totalWidth));
+         float panelWidth = this.widthAnimation.getValue();
+         DrawUtil.drawBlur(ctx.getMatrices(), posX, posY, panelWidth, headerHeight, 11.0F, BorderRadius.all(3.0F), new ColorRGBA(40, 40, 40, 255.0F * this.alpha.getValue()));
+         float iconX = posX + panelWidth - iconRightPadding - headerIconWidth;
+         ctx.drawText(Fonts.MINCED.getFont(9.0F), headerIcon, iconX, posY + 5.2F, theme.getColor().withAlpha(255.0F * this.alpha.getValue()));
+         ctx.drawText(Fonts.MEDIUM.getFont(8.0F), headerTitle, posX + titleX, posY + 5.5F, ColorRGBA.WHITE.withAlpha(255.0F * this.alpha.getValue()));
+         float currentY = posY + headerHeight + rowSpacing;
+         Iterator var17 = this.potionItems.iterator();
+
+         while(var17.hasNext()) {
+            PotionsComponent.PotionItem item = (PotionsComponent.PotionItem)var17.next();
+            if (item.animation.getValue() != 0.0F) {
+               String name = I18n.translate(item.name, new Object[0]);
+               String amp = this.getAmplifierText(item.amplifier);
+               duration = this.formatDuration(item.durationTicks);
+               float rowAlpha = item.animation.getValue() * this.alpha.getValue();
+               float rowOffset = (1.0F - item.animation.getValue()) * 3.0F;
+               float rowY = currentY + rowOffset;
+               float ampWidth = amp.equals("1") ? 0.0F : Fonts.MEDIUM.getWidth(amp, 7.0F) + 2.5F;
+               float nameWidth = Fonts.MEDIUM.getWidth(name, 7.0F) + ampWidth;
+               float arrowWidth = Fonts.MINCED.getWidth(rowArrowIcon, rowArrowSize);
+               float leftDisplayWidth = effectIconSize + iconToArrowGap + arrowWidth + arrowToTextGap + nameWidth;
+               float leftBoxWidth = Math.max(12.0F, rowTextLeftPadding + leftDisplayWidth + rowTextRightPadding + leftBlurExtraWidth);
+               float durationBoxX = posX + panelWidth - durationBoxWidth;
+               DrawUtil.drawBlur(ctx.getMatrices(), posX, rowY, leftBoxWidth, rowHeight, 9.0F, BorderRadius.all(2.5F), new ColorRGBA(72, 72, 72, 255.0F * rowAlpha));
+               DrawUtil.drawBlur(ctx.getMatrices(), durationBoxX, rowY, durationBoxWidth, rowHeight, 9.0F, BorderRadius.all(2.5F), new ColorRGBA(72, 72, 72, 255.0F * rowAlpha));
+               float effectIconX = posX + rowTextLeftPadding;
+               float iconY = rowY + (rowHeight - effectIconSize) / 2.0F;
+               Identifier effectIcon = this.getEffectIcon(item.effect.getEffectType().value());
+               ctx.drawTexture(effectIcon, effectIconX, iconY, effectIconSize, effectIconSize, ColorRGBA.WHITE.withAlpha(rowAlpha * 255.0F));
+               float arrowX = effectIconX + effectIconSize + iconToArrowGap;
+               ctx.drawText(Fonts.MINCED.getFont(rowArrowSize), rowArrowIcon, arrowX, rowY + 4.6F, ColorRGBA.WHITE.withAlpha(rowAlpha * 180.0F));
+               float textX = arrowX + arrowWidth + arrowToTextGap - textNudgeLeft;
+               ctx.drawText(Fonts.MEDIUM.getFont(7.0F), name, textX, rowY + 4.2F, (new ColorRGBA(-1)).withAlpha(rowAlpha * 255.0F));
+               if (!amp.equals("1")) {
+                  float ampX = textX + Fonts.MEDIUM.getWidth(name, 7.0F) + 2.5F;
+                  ctx.drawText(Fonts.MEDIUM.getFont(7.0F), amp, ampX, rowY + 4.2F, theme.getColor().withAlpha(rowAlpha * 255.0F));
+               }
+
+               float durationX = durationBoxX + (durationBoxWidth - Fonts.MEDIUM.getWidth(duration, 7.0F)) / 2.0F;
+               ctx.drawText(Fonts.MEDIUM.getFont(7.0F), duration, durationX, rowY + 4.2F, (new ColorRGBA(-1)).withAlpha(rowAlpha * 255.0F));
+               currentY += (rowHeight + rowSpacing) * item.animation.getValue();
+            }
+         }
+
+         this.width = panelWidth;
          this.height = height;
       }
    }
