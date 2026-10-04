@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "javelin",
+  "version": "1.0-SNAPSHOT",
+  "name": "Javelin",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/javelin/icons/avatar.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      {
+        "adapter": "default",
+        "value": "tech.javelin.Javelin::INSTANCE"
+      }
+    ]
+  },
+  "mixins": [
+    "javelin.mixins.json"
+  ],
+  "accessWidener": "javelin.accesswidener",
+  "depends": {
+    "fabricloader": ">=0.16.10",
+    "fabric": "*",
+    "minecraft": "1.21.4"
+  }
+}
