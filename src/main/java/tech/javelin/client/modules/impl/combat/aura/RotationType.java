@@ -10,6 +10,8 @@ public enum RotationType {
 
     FUNTIME("FunTime", new FunTimeRotation()),
     SPOOKYTIME("SpookyTime", new SpookyTimeRotation()),
+    SPOOKYTIMEV2("SpookyTimeV2", new SpookytimeV2Rotation()),
+    INTPOL("Intpol", new IntpolRotation()),
     SLIMEWORLD("SlimeWorld", new SlimeWorldRotation()),
     REALLYWORLD("ReallyWorld", new ReallyWorldRotation()),
     LONYGRIEF("LonyGrief", new LonyGriefRotation()),
