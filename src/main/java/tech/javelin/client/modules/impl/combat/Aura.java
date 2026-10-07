@@ -7,6 +7,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import net.minecraft.client.option.Perspective;
+import net.minecraft.client.util.InputUtil;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.decoration.ArmorStandEntity;
@@ -29,6 +30,7 @@ import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.RaycastContext;
+import org.lwjgl.glfw.GLFW;
 import ru.nexusguard.protection.annotations.Native;
 import tech.javelin.Javelin;
 import tech.javelin.base.events.impl.other.EventGameUpdate;
@@ -85,6 +87,7 @@ public final class Aura extends Module {
     public final ModeSetting throughBlocks;
     public final ModeSetting typeOtvodka;
     public final BooleanSetting smartcriticals;
+    public final BooleanSetting autoJump;
     public final BooleanSetting maceCrits;
     public final BooleanSetting autoSword;
     public final BooleanSetting maxDamage;
@@ -108,6 +111,8 @@ public final class Aura extends Module {
     // межударный интервал плавает 430-520 мс — фиксированный интервал палит поведенческий детектор
     private long nextAttackDelay = 458L;
     private long lastAttackMillis = 0L;
+    // авто-прыжок: мы нажали пробел синтетически и должны сами его отпустить
+    private boolean autoJumpPressed = false;
     private final ScriptManager.ScriptTask script;
     private int lastSlot;
     public float lastYaw;
@@ -133,6 +138,7 @@ public final class Aura extends Module {
         this.throughBlocks = new ModeSetting("Бить через блоки", new String[]{"Умная", "Выключено", "Неполноценные", "Полноценные"});
         this.typeOtvodka = new ModeSetting("Тип отводки", new String[]{"Камера", "Плавная", "Space-Times", "Off"});
         this.smartcriticals = new BooleanSetting("Умные криты", true);
+        this.autoJump = new BooleanSetting("Авто прыжок", true);
         this.maceCrits = new BooleanSetting("Крит булавы", true);
         this.autoSword = new BooleanSetting("Авто-меч", true);
         this.maxDamage = new BooleanSetting("Макс дамаг", false);
@@ -272,6 +278,7 @@ public final class Aura extends Module {
         }
 
         if (this.target != null) {
+            this.tickAutoJump();
             this.handleLegitSprint();
 
             if (this.canCrit() && this.isCanAttack() && this.hurtTimer.finished(this.nextAttackDelay)
@@ -312,6 +319,42 @@ public final class Aura extends Module {
                 && mc.player.getVelocity().y < 0.0D
                 && !mc.player.isClimbing()
                 && !mc.player.isTouchingWater();
+    }
+
+    /**
+     * Авто-прыжок для крита: все условия удара сошлись, но мы стоим на земле —
+     * прыгаем сами (однотиковое нажатие пробела), удар пройдет в середине
+     * падения этого прыжка. Строгий крит-гейт без прыжка никогда не пустит удар.
+     */
+    private void tickAutoJump() {
+        if (mc.player == null) {
+            return;
+        }
+
+        if (this.autoJumpPressed) {
+            // отпускаем пробел, только если сам игрок его физически не держит
+            if (!InputUtil.isKeyPressed(mc.getWindow().getHandle(), GLFW.GLFW_KEY_SPACE)) {
+                mc.options.jumpKey.setPressed(false);
+            }
+            this.autoJumpPressed = false;
+            return;
+        }
+
+        if (!this.autoJump.isEnabled() || !mc.player.isOnGround() || this.target == null) {
+            return;
+        }
+
+        if (this.isCanAttack()
+                && this.hurtTimer.finished(this.nextAttackDelay)
+                && this.target.hurtTime <= 3
+                && !this.target.isBlocking()
+                && !mc.player.isTouchingWater()
+                && !mc.player.isClimbing()
+                && !mc.player.hasVehicle()
+                && !mc.player.getAbilities().flying) {
+            mc.options.jumpKey.setPressed(true);
+            this.autoJumpPressed = true;
+        }
     }
 
     /**
