@@ -15,6 +15,8 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.Util;
 import net.minecraft.util.math.MathHelper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tech.javelin.Javelin;
 import tech.javelin.base.font.Fonts;
 import tech.javelin.base.theme.Theme;
@@ -55,6 +57,7 @@ public class DeluxeMainMenuScreen extends Screen implements IMinecraft {
    private static final ColorRGBA DESC_COLOR = new ColorRGBA(255, 255, 255, 145);
    private static final ColorRGBA ROW_TEXT_COLOR = new ColorRGBA(198, 198, 198, 255);
    private static final ColorRGBA DANGER_COLOR = new ColorRGBA(235, 64, 52, 255);
+   private static final Logger LOG = LoggerFactory.getLogger(DeluxeMainMenuScreen.class);
 
    private final Map<String, Float> hovers = new HashMap<>();
    private final List<ActionRegion> actionRegions = new ArrayList<>();
@@ -125,8 +128,7 @@ public class DeluxeMainMenuScreen extends Screen implements IMinecraft {
       this.drawRow(ctx, contentX, offY + 270.0F * scale, scale, "singleplayer", ICON_SINGLEPLAYER, 6.0F,
             "Одиночная игра", null, ColorRGBA.WHITE, mouseX, mouseY, dt, () -> mc.setScreen(new SelectWorldScreen(this)));
       this.drawRow(ctx, contentX, offY + 295.5F * scale, scale, "accounts", ICON_ACCOUNTS, 6.0F,
-            "Ваши аккаунты", ICON_BELL, DANGER_COLOR, mouseX, mouseY, dt, () -> {
-            });
+            "Ваши аккаунты", ICON_BELL, DANGER_COLOR, mouseX, mouseY, dt, this::openAccounts);
       this.drawRow(ctx, contentX, offY + 321.0F * scale, scale, "cosmetics", ICON_COSMETICS, 6.5F,
             "Косметика", ICON_CHEVRON, DESC_COLOR, mouseX, mouseY, dt, () -> {
             });
@@ -220,6 +222,21 @@ public class DeluxeMainMenuScreen extends Screen implements IMinecraft {
          }
       }
       return super.mouseClicked(mouseX, mouseY, button);
+   }
+
+   /**
+    * Открывает окно аккаунтов мода IAS (In-Game Account Switcher).
+    * IAS — внешний мод из run/mods, поэтому загружаем через рефлексию:
+    * если мода нет, просто логируем и остаёмся в меню.
+    */
+   private void openAccounts() {
+      try {
+         Class<?> screenClass = Class.forName("ru.vidtu.ias.screen.AccountScreen");
+         Object screen = screenClass.getConstructor(Screen.class).newInstance(this);
+         mc.setScreen((Screen) screen);
+      } catch (Throwable t) {
+         LOG.warn("IAS not found, cannot open account screen", t);
+      }
    }
 
    private void text(CustomDrawContext ctx, String value, float x, float y, float size, ColorRGBA color) {

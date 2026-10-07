@@ -138,23 +138,22 @@ public class IntpolRotation implements RotationAura {
 
         Vec3d aimPoint = this.updateAimPoint(target, lastYaw, lastPitch, now);
 
-        boolean frozen = LAYER_IMPULSE && this.impulseTime > 0L && now - this.impulseTime < this.holdDurationMillis;
-        float heldYaw;
-        float heldPitch;
-        if (frozen) {
-            // замирание перед ударом: прицел держится на месте
-            heldYaw = this.impulseHoldYaw;
-            heldPitch = this.impulseHoldPitch;
-        } else {
-            Rotation fresh = this.freshAngle(aimPoint);
-            float flinchFactor = this.flinchTicks > 0 ? 1.0f : 0.0f;
-            heldYaw = fresh.getYaw() + this.errYaw + this.flinchErrYaw * flinchFactor;
-            heldPitch = MathHelper.clamp(fresh.getPitch() + this.errPitch + this.flinchErrPitch * flinchFactor, -89.5f, 89.5f);
-        }
+        // свежие углы к точке считаем ДО заморозки: в тик срабатывания импульса
+        // они сохраняются как точка замирания (иначе прицел улетает в мусорные нули)
+        Rotation fresh = this.freshAngle(aimPoint);
+        float flinchFactor = this.flinchTicks > 0 ? 1.0f : 0.0f;
+        float freshYaw = fresh.getYaw() + this.errYaw + this.flinchErrYaw * flinchFactor;
+        float freshPitch = MathHelper.clamp(fresh.getPitch() + this.errPitch + this.flinchErrPitch * flinchFactor, -89.5f, 89.5f);
+
         if (impulseTriggered) {
-            this.impulseHoldYaw = heldYaw;
-            this.impulseHoldPitch = heldPitch;
+            this.impulseHoldYaw = freshYaw;
+            this.impulseHoldPitch = freshPitch;
+            this.needPickAim = true; // новая точка удара на следующий заход
         }
+
+        boolean frozen = LAYER_IMPULSE && this.impulseTime > 0L && now - this.impulseTime < this.holdDurationMillis;
+        float heldYaw = frozen ? this.impulseHoldYaw : freshYaw;
+        float heldPitch = frozen ? this.impulseHoldPitch : freshPitch;
 
         this.updateAlignedFactor(target, ranges, now);
         this.integrateVelocities(aura, target, lastYaw, lastPitch, heldYaw, heldPitch, impulseTriggered);
@@ -186,7 +185,6 @@ public class IntpolRotation implements RotationAura {
                 this.attackImpulse = this.randomFloat(1.9f, 2.3f);
                 this.impulseTime = now;
                 this.holdDurationMillis = (long) this.random.nextDouble(200.0, 250.0);
-                this.needPickAim = true; // точка съезжает к груди
             }
         }
 

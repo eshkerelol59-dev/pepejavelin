@@ -22,9 +22,13 @@ import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 import net.minecraft.network.packet.c2s.play.ClientCommandC2SPacket.Mode;
 import net.minecraft.screen.slot.SlotActionType;
 import net.minecraft.util.Hand;
+import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.util.hit.HitResult;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.RaycastContext;
 import ru.nexusguard.protection.annotations.Native;
 import tech.javelin.Javelin;
 import tech.javelin.base.events.impl.other.EventGameUpdate;
@@ -329,15 +333,13 @@ public final class Aura extends Module {
     }
 
     /**
-     * Строгие криты: удар ТОЛЬКО в падении, с выключенным спринтом и реальным
-     * fall distance (порог по скорости падения отсекает прыжок у самой земли).
-     * Если крит невозможен в принципе (вода, лестница и т.п.) — просто бьем.
+     * Строгие криты БЕЗ исключений: удар только в устойчивой середине падения —
+     * fall distance с запасом, уверенная скорость падения и не у самой земли
+     * (при пинге сервер может обработать удар уже после приземления — тогда
+     * крит не засчитывается и получается тап). Если крит невозможен в принципе
+     * (вода, лестница и т.п.) — просто бьем.
      */
     private boolean canCrit() {
-        if (!this.smartcriticals.isEnabled()) {
-            return true;
-        }
-
         boolean canCritical = !mc.player.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.LEVITATION)
                 && !mc.player.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.BLINDNESS)
                 && !mc.world.getFluidState(net.minecraft.util.math.BlockPos.ofFloored(mc.player.getEyePos())).isIn(net.minecraft.registry.tag.FluidTags.WATER)
@@ -351,9 +353,27 @@ public final class Aura extends Module {
             return true;
         }
 
-        return !mc.player.isOnGround()
-                && mc.player.fallDistance > this.effectiveFallThreshold()
-                && !mc.player.isSprinting();
+        if (mc.player.isOnGround() || mc.player.isSprinting()) {
+            return false;
+        }
+
+        // не бьем в начале падения (fall distance мал) и при слабом падении
+        double fallMargin = Math.max(this.effectiveFallThreshold(), 0.3D);
+        if (mc.player.fallDistance <= fallMargin || mc.player.getVelocity().y >= -0.2D) {
+            return false;
+        }
+
+        // не бьем у самой земли: до блоков под ногами меньше полблока — удар
+        // рискует прийти на сервер уже после приземления
+        return !this.isLandingImminent();
+    }
+
+    private boolean isLandingImminent() {
+        Vec3d pos = mc.player.getPos();
+        BlockHitResult hit = mc.world.raycast(new RaycastContext(
+                pos, pos.add(0.0D, -1.0D, 0.0D),
+                RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, mc.player));
+        return hit.getType() == HitResult.Type.BLOCK && pos.y - hit.getPos().y < 0.5D;
     }
 
     private double effectiveFallThreshold() {
@@ -407,7 +427,13 @@ public final class Aura extends Module {
                 String currentModeName = this.rotationMode.getValue().getName();
                 for (tech.javelin.client.modules.impl.combat.aura.RotationType type : tech.javelin.client.modules.impl.combat.aura.RotationType.values()) {
                     if (currentModeName.equalsIgnoreCase(type.getName()) || currentModeName.equalsIgnoreCase(type.name())) {
-                        type.getRotation().onRotation(this, this.target, new float[]{this.distance.getCurrent(), this.distanceRotation.getCurrent()}, this.isCanAttack());
+                        // полный флаг готовности удара: без него импульс-заморозка
+                        // ротации включалась бы на всю погоню, а не перед самим ударом
+                        boolean attackReady = this.canCrit() && this.isCanAttack()
+                                && this.hurtTimer.finished(this.nextAttackDelay)
+                                && this.target.hurtTime <= 3
+                                && !this.target.isBlocking();
+                        type.getRotation().onRotation(this, this.target, new float[]{this.distance.getCurrent(), this.distanceRotation.getCurrent()}, attackReady);
                         return;
                     }
                 }
