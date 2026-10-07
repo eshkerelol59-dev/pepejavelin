@@ -1,6 +1,7 @@
 package tech.javelin.utility.mixin.client;
 
 import com.darkmagician6.eventapi.EventManager;
+import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.AbstractClientPlayerEntity;
@@ -29,6 +30,7 @@ import tech.javelin.base.events.impl.player.EventMove;
 import tech.javelin.base.events.impl.player.EventSlowWalking;
 import tech.javelin.base.events.impl.player.EventSprintUpdate;
 import tech.javelin.base.events.impl.player.EventUpdate;
+import tech.javelin.client.modules.impl.combat.Aura;
 import tech.javelin.client.modules.impl.player.NoPush;
 
 @Mixin({ClientPlayerEntity.class})
@@ -97,6 +99,34 @@ public abstract class ClientPlayerEntityMixin extends AbstractClientPlayerEntity
          this.method_46742();
       }
 
+   }
+
+   /**
+    * Легитный сброс спринта: в окне крита ваниль видит спринт-клавишу отжатой —
+    * она сама снимает спринт и шлёт свой STOP. Никаких ручных пакетов.
+    * В tickMovement оба isPressed() — чтения именно спринт-клавиши.
+    */
+   @ModifyExpressionValue(
+      method = {"tickMovement"},
+      at = {@At(
+   value = "INVOKE",
+   target = "Lnet/minecraft/client/option/KeyBinding;isPressed()Z"
+)}
+   )
+   public boolean unpressSprintKey(boolean original) {
+      return Aura.INSTANCE.shouldPreventSprinting() ? false : original;
+   }
+
+   /** canSprint()=false гасит и уже активный спринт, и запрещает стартовать заново (вкл. double-tap). */
+   @ModifyExpressionValue(
+      method = {"tickMovement"},
+      at = {@At(
+   value = "INVOKE",
+   target = "Lnet/minecraft/client/network/ClientPlayerEntity;canSprint()Z"
+)}
+   )
+   private boolean disallowSprinting(boolean original) {
+      return Aura.INSTANCE.shouldPreventSprinting() ? false : original;
    }
 
    @Inject(

@@ -41,7 +41,7 @@ import tech.javelin.client.modules.api.setting.impl.BooleanSetting;
 import tech.javelin.client.modules.api.setting.impl.ModeSetting;
 import tech.javelin.client.modules.api.setting.impl.MultiBooleanSetting;
 import tech.javelin.client.modules.api.setting.impl.NumberSetting;
-import tech.javelin.client.modules.impl.movement.AutoSprint;
+import tech.javelin.client.modules.impl.render.Interface;
 import tech.javelin.utility.component.FreeLookComponent;
 import tech.javelin.utility.component.RotationComponent;
 import tech.javelin.utility.game.player.MovingUtil;
@@ -65,6 +65,7 @@ public final class Aura extends Module {
     private final ModeSetting.Value funTime;
     private final ModeSetting.Value spookyTime;
     private final ModeSetting.Value spookyTimeV2;
+    private final ModeSetting.Value deluxe;
     private final ModeSetting.Value intpol;
     private final ModeSetting.Value slimeWorld;
     private final ModeSetting.Value reallyWorld;
@@ -80,7 +81,6 @@ public final class Aura extends Module {
     public final ModeSetting throughBlocks;
     public final ModeSetting typeOtvodka;
     public final BooleanSetting smartcriticals;
-    public final BooleanSetting dynamicCrits;
     public final BooleanSetting maceCrits;
     public final BooleanSetting autoSword;
     public final BooleanSetting maxDamage;
@@ -101,11 +101,11 @@ public final class Aura extends Module {
     private float acceleration;
     private boolean isBack;
     private final Timer hurtTimer;
-    private final Timer critDelayTimer;
-    private long critDelay = 0L;
+    // межударный интервал плавает 430-520 мс — фиксированный интервал палит поведенческий детектор
+    private long nextAttackDelay = 458L;
+    private long lastAttackMillis = 0L;
     private final ScriptManager.ScriptTask script;
     private int lastSlot;
-    private boolean sprintResetArmed;
     public float lastYaw;
     public float lastPitch;
 
@@ -113,6 +113,7 @@ public final class Aura extends Module {
         this.funTime = (new ModeSetting.Value(this.rotationMode, "FunTime")).select();
         this.spookyTime = new ModeSetting.Value(this.rotationMode, "SpookyTime");
         this.spookyTimeV2 = new ModeSetting.Value(this.rotationMode, "SpookyTimeV2");
+        this.deluxe = new ModeSetting.Value(this.rotationMode, "Deluxe");
         this.intpol = new ModeSetting.Value(this.rotationMode, "Intpol");
         this.slimeWorld = new ModeSetting.Value(this.rotationMode, "SlimeWorld");
         this.reallyWorld = new ModeSetting.Value(this.rotationMode, "ReallyWorld");
@@ -124,11 +125,10 @@ public final class Aura extends Module {
         this.legit = new ModeSetting.Value(this.rotationMode, "Legit");
         this.vanilla = new ModeSetting.Value(this.rotationMode, "Vanilla");
 
-        this.typeSprint = new ModeSetting("Тип спринта", new String[]{"Packet", "Silent", "Legit", "Off"});
+        this.typeSprint = new ModeSetting("Тип спринта", new String[]{"Packet", "Silent", "Legit", "Deluxe", "Vanilla", "Off"});
         this.throughBlocks = new ModeSetting("Бить через блоки", new String[]{"Умная", "Выключено", "Неполноценные", "Полноценные"});
         this.typeOtvodka = new ModeSetting("Тип отводки", new String[]{"Камера", "Плавная", "Space-Times", "Off"});
         this.smartcriticals = new BooleanSetting("Умные криты", true);
-        this.dynamicCrits = new BooleanSetting("Динам криты", true);
         this.maceCrits = new BooleanSetting("Крит булавы", true);
         this.autoSword = new BooleanSetting("Авто-меч", true);
         this.maxDamage = new BooleanSetting("Макс дамаг", false);
@@ -149,7 +149,6 @@ public final class Aura extends Module {
         this.critsOnlyWithSpace = new BooleanSetting("Только с пробелом", true);
         this.target = null;
         this.hurtTimer = new Timer();
-        this.critDelayTimer = new Timer();
         this.script = new ScriptManager.ScriptTask();
         this.lastSlot = -1;
     }
@@ -237,7 +236,6 @@ public final class Aura extends Module {
         }
 
         if (prevTarget != null && this.target == null && mc.player != null) {
-            this.restoreSprintIfNeeded();
             if (this.typeOtvodka.is("Камера")) {
                 float snapYaw = this.lastYaw != 0.0F ? this.lastYaw : mc.player.getYaw();
                 float snapPitch = this.lastPitch != 0.0F ? this.lastPitch : mc.player.getPitch();
@@ -270,12 +268,13 @@ public final class Aura extends Module {
         }
 
         if (this.target != null) {
-            this.handleSprintResetBeforeCrit();
+            this.handleLegitSprint();
 
-            if (this.canDynamicCrit() && this.isCanAttack() && this.hurtTimer.finished(458L) && !this.target.isBlocking()) {
+            if (this.canCrit() && this.isCanAttack() && this.hurtTimer.finished(this.nextAttackDelay)
+                    && this.target.hurtTime <= 3 && !this.target.isBlocking()) {
+                // Packet/Silent: классический агрессивный сброс в тик удара
                 boolean wasSprinting = mc.player.isSprinting();
-                boolean sprintPreReset = this.sprintResetArmed;
-                if (wasSprinting && !sprintPreReset && (this.typeSprint.is("Packet") || this.typeSprint.is("Silent"))) {
+                if (wasSprinting && (this.typeSprint.is("Packet") || this.typeSprint.is("Silent"))) {
                     mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, Mode.STOP_SPRINTING));
                     mc.player.setSprinting(false);
                 }
@@ -292,18 +291,12 @@ public final class Aura extends Module {
                     }
                 }
 
-                if ((wasSprinting || sprintPreReset) && (this.typeSprint.is("Packet") || this.typeSprint.is("Silent"))) {
+                if (wasSprinting && (this.typeSprint.is("Packet") || this.typeSprint.is("Silent"))) {
                     mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, Mode.START_SPRINTING));
                     mc.player.setSprinting(true);
                 }
 
-                this.sprintResetArmed = false;
-                this.critDelay = 0L;
-
-                if (this.typeSprint.is("Legit") && AutoSprint.INSTANCE.isEnabled()) {
-                    mc.options.sprintKey.setPressed(true);
-                }
-
+                this.nextAttackDelay = this.nextDynamicDelay();
                 this.hurtTimer.reset();
             }
 
@@ -318,87 +311,79 @@ public final class Aura extends Module {
     }
 
     /**
-     * Динам криты: удар только когда крит гарантирован (падаем и спринт выключен),
-     * перед каждым ударом — рандомное ожидание 60-70 мс.
+     * Legit: отжимаем клавишу спринта в окне перед ударом (прогресс 0.70-0.90).
+     * Ваниль сама снимает спринт и шлёт свои пакеты.
      */
-    private boolean canDynamicCrit() {
-        if (!this.dynamicCrits.isEnabled()) {
-            return true;
-        }
-        if (!this.isCritCondition() || mc.player.isSprinting()) {
-            this.critDelay = 0L;
-            return false;
-        }
-        if (this.critDelay == 0L) {
-            this.critDelay = 60L + (long) (Math.random() * 11.0D);
-            this.critDelayTimer.reset();
-            return false;
-        }
-        return this.critDelayTimer.finished(this.critDelay);
-    }
-
-    private boolean isSprintResetType() {
-        return this.typeSprint.is("Packet") || this.typeSprint.is("Silent") || this.typeSprint.is("Legit");
-    }
-
-    private void handleSprintResetBeforeCrit() {
-        if (mc.player == null || this.target == null) {
+    private void handleLegitSprint() {
+        if (!this.typeSprint.is("Legit") || mc.player == null || this.target == null) {
             return;
         }
 
-        if (this.sprintResetArmed) {
-            float progress = mc.player.getAttackCooldownProgress(0.0F);
-            int ticksToAttack = MathHelper.ceil((0.9F - progress) * mc.player.getAttackCooldownProgressPerTick());
-            if (!this.isCritCondition() || ticksToAttack < 0) {
-                this.restoreSprintIfNeeded();
-            } else {
-                mc.player.setSprinting(false);
-                if (this.typeSprint.is("Legit")) {
-                    mc.options.sprintKey.setPressed(false);
-                }
-            }
-            return;
-        }
+        float cooldownProgress = mc.player.getAttackCooldownProgress(0.5F);
+        boolean inWindow = cooldownProgress >= 0.70F && cooldownProgress < 0.90F;
 
-        if (!this.smartcriticals.isEnabled() || !this.isSprintResetType()) {
-            return;
-        }
-
-        if (!this.isCritCondition() || mc.player.getAttackCooldownProgress(0.0F) >= 0.9F) {
-            return;
-        }
-
-        int ticksToAttack = MathHelper.ceil((0.9F - mc.player.getAttackCooldownProgress(0.0F)) * mc.player.getAttackCooldownProgressPerTick());
-        if (ticksToAttack > 3) {
-            return;
-        }
-
-        if (this.typeSprint.is("Legit")) {
+        if (inWindow && this.isCritCondition()) {
             mc.options.sprintKey.setPressed(false);
             mc.player.setSprinting(false);
-        } else if (mc.player.isSprinting()) {
-            mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, Mode.STOP_SPRINTING));
-            mc.player.setSprinting(false);
         }
-        this.sprintResetArmed = true;
     }
 
-    private void restoreSprintIfNeeded() {
-        if (!this.sprintResetArmed) {
-            return;
+    /**
+     * Строгие криты: удар ТОЛЬКО в падении, с выключенным спринтом и реальным
+     * fall distance (порог по скорости падения отсекает прыжок у самой земли).
+     * Если крит невозможен в принципе (вода, лестница и т.п.) — просто бьем.
+     */
+    private boolean canCrit() {
+        if (!this.smartcriticals.isEnabled()) {
+            return true;
         }
-        this.sprintResetArmed = false;
-        if (mc.player == null) {
-            return;
+
+        boolean canCritical = !mc.player.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.LEVITATION)
+                && !mc.player.hasStatusEffect(net.minecraft.entity.effect.StatusEffects.BLINDNESS)
+                && !mc.world.getFluidState(net.minecraft.util.math.BlockPos.ofFloored(mc.player.getEyePos())).isIn(net.minecraft.registry.tag.FluidTags.WATER)
+                && !mc.world.getFluidState(net.minecraft.util.math.BlockPos.ofFloored(mc.player.getEyePos())).isIn(net.minecraft.registry.tag.FluidTags.LAVA)
+                && !mc.player.getAbilities().flying
+                && !mc.player.isGliding()
+                && !mc.player.isClimbing()
+                && !mc.player.hasVehicle();
+
+        if (!canCritical) {
+            return true;
         }
-        if (this.typeSprint.is("Legit")) {
-            if (AutoSprint.INSTANCE.isEnabled()) {
-                mc.options.sprintKey.setPressed(true);
-            }
-        } else if (!mc.player.isSprinting() && (this.typeSprint.is("Packet") || this.typeSprint.is("Silent"))) {
-            mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, Mode.START_SPRINTING));
-            mc.player.setSprinting(true);
+
+        return !mc.player.isOnGround()
+                && mc.player.fallDistance > this.effectiveFallThreshold()
+                && !mc.player.isSprinting();
+    }
+
+    private double effectiveFallThreshold() {
+        double fallThreshold = mc.player.fallDistance;
+        if (!mc.player.isOnGround()
+                && mc.player.getVelocity().y < -0.0784000015258789D
+                && !mc.world.getFluidState(mc.player.getBlockPos()).isIn(net.minecraft.registry.tag.FluidTags.WATER)
+                && !mc.world.getFluidState(mc.player.getBlockPos().up()).isIn(net.minecraft.registry.tag.FluidTags.WATER)) {
+            fallThreshold = -mc.player.getVelocity().y;
         }
+        return fallThreshold;
+    }
+
+    /**
+     * Легитный сброс спринта (режим Vanilla): в окне крита (≤3 тика до удара,
+     * падаем) запрещаем ванили спринтить через ClientPlayerEntityMixin —
+     * canSprint()=false гасит активный спринт, sprintKey-бит запрещает старт.
+     * Пакеты не шлём вообще: STOP/START отправляет сама ваниль, и они всегда
+     * легальны (Grim BadPacketsX/BadPacketsF ловит только ручные пакеты).
+     */
+    public boolean shouldPreventSprinting() {
+        return this.isEnabled() && mc.player != null && this.target != null
+                && this.typeSprint.is("Vanilla")
+                && this.isCritCondition()
+                && this.ticksToAttack() <= 3;
+    }
+
+    private int ticksToAttack() {
+        float progress = mc.player.getAttackCooldownProgress(0.0F);
+        return MathHelper.ceil((0.9F - progress) * mc.player.getAttackCooldownProgressPerTick());
     }
 
     @EventTarget
@@ -406,14 +391,6 @@ public final class Aura extends Module {
     public void onTickMovement(EventTickMovement e) {
         if (this.target != null) {
             if (this.target.isBlocking() && this.hurtTimer.finished(50L)) {
-                if (mc.player.isSprinting() && !mc.player.isOnGround() && !mc.player.isSwimming()) {
-                    mc.player.setSprinting(false);
-                    mc.getNetworkHandler().sendPacket(new ClientCommandC2SPacket(mc.player, Mode.STOP_SPRINTING));
-                    if (!AutoSprint.INSTANCE.isEnabled()) {
-                        mc.options.sprintKey.setPressed(false);
-                    }
-                }
-
                 this.breakShieldAndAttack();
                 this.hurtTimer.reset();
             }
@@ -540,6 +517,7 @@ public final class Aura extends Module {
 
     @EventTarget
     private void setCorrection(EventMoveInput eventMoveInput) {
+        this.handleDeluxeSprintReset(eventMoveInput);
         if (!this.correctionNone.isSelected() && this.target != null) {
             if (this.correctionFocus.isSelected()) {
                 MovingUtil.fixMovementFocus(eventMoveInput, mc.player.getYaw());
@@ -548,6 +526,50 @@ public final class Aura extends Module {
             }
 
         }
+    }
+
+    /**
+     * Deluxe: за 3 тика до удара, когда игрок падает, движение замирает
+     * (forward/strafe = 0) — ваниль сам снимает спринт и шлёт свои пакеты.
+     */
+    private void handleDeluxeSprintReset(EventMoveInput eventMoveInput) {
+        if (!this.typeSprint.is("Deluxe") || this.target == null || mc.player == null) {
+            return;
+        }
+
+        boolean attackImminent = mc.player.getEyePos().distanceTo(
+                MultipointUtils.getNearestPoint(this.target, (double) this.distance.getCurrent())) <= (double) this.distance.getCurrent()
+                && this.ticksToAttack() <= 3;
+        if (attackImminent
+                && !mc.player.isOnGround()
+                && !mc.player.isSubmergedInWater()
+                && mc.player.getVelocity().y <= 0.16477328182606651D) {
+            eventMoveInput.setForward(0.0F);
+            eventMoveInput.setStrafe(0.0F);
+        }
+    }
+
+    /**
+     * Динамичный тайминг удара: база 430-520 мс, в комбо быстрее,
+     * на краю дистанции — сразу как готово, изредка человеческая микро-пауза.
+     */
+    private long nextDynamicDelay() {
+        long now = System.currentTimeMillis();
+        boolean combo = now - this.lastAttackMillis < 900L;
+        this.lastAttackMillis = now;
+
+        double dist = mc.player.getEyePos().distanceTo(this.target.getBoundingBox().getCenter());
+        long delay = 430L + (long) (Math.random() * 90.0D);
+        if (combo) {
+            delay = (long) ((double) delay * 0.82D);
+        }
+        if (dist > (double) this.distance.getCurrent() * 0.85D) {
+            delay = (long) ((double) delay * 0.9D);
+        }
+        if (Math.random() < 0.12D) {
+            delay += 150L + (long) (Math.random() * 150.0D);
+        }
+        return delay;
     }
 
     public LivingEntity getTarget() {
@@ -561,7 +583,6 @@ public final class Aura extends Module {
 
     public void onDisable() {
         Javelin.getInstance().getModuleManager().setAcceleration(0.0F);
-        this.restoreSprintIfNeeded();
         if (mc.player != null) {
             if (this.typeOtvodka.is("Off")) {
                 if (FreeLookComponent.getFreeYaw() != 0.0F) {
@@ -592,6 +613,9 @@ public final class Aura extends Module {
                     }
                     if (type.getRotation() instanceof tech.javelin.client.modules.impl.combat.aura.rotation.IntpolRotation) {
                         ((tech.javelin.client.modules.impl.combat.aura.rotation.IntpolRotation) type.getRotation()).hardReset();
+                    }
+                    if (type.getRotation() instanceof tech.javelin.client.modules.impl.combat.aura.rotation.DeluxeRotation) {
+                        ((tech.javelin.client.modules.impl.combat.aura.rotation.DeluxeRotation) type.getRotation()).hardReset();
                     }
                     break;
                 }

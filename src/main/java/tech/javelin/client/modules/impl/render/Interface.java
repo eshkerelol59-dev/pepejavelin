@@ -15,6 +15,14 @@ import tech.javelin.base.events.impl.other.EventWindowResize;
 import tech.javelin.base.events.impl.player.EventUpdate;
 import tech.javelin.base.events.impl.render.EventHudRender;
 import tech.javelin.client.hud.elements.component.HootBarComponent;
+import tech.javelin.client.hud.elements.component.DeluxeArrowsComponent;
+import tech.javelin.client.hud.elements.component.DeluxeCooldownsComponent;
+import tech.javelin.client.hud.elements.component.DeluxeInventoryComponent;
+import tech.javelin.client.hud.elements.component.DeluxeKeybindsComponent;
+import tech.javelin.client.hud.elements.component.DeluxePotionsComponent;
+import tech.javelin.client.hud.elements.component.DeluxeStaffComponent;
+import tech.javelin.client.hud.elements.component.DeluxeTargetHudComponent;
+import tech.javelin.client.hud.elements.component.DeluxeWatermarkComponent;
 import tech.javelin.client.hud.elements.component.InformationComponent;
 import tech.javelin.client.hud.elements.component.InventoryComponent;
 import tech.javelin.client.hud.elements.component.KeybindsComponent;
@@ -42,7 +50,7 @@ import tech.javelin.utility.render.display.base.GuiUtil;
 public final class Interface extends Module {
    public static final Interface INSTANCE = new Interface();
    private final ModeSetting modeSetting = new ModeSetting("Режим", "Javelin", "Minced");
-   private final MultiBooleanSetting elementsSetting = MultiBooleanSetting.create("Элементы", List.of("Ватермарка", "Эффекты", "Модераторы", "Уведомления", "Информация", "Бинды", "Таргет худ", "Инвентарь", "Хотбар"));
+   private final MultiBooleanSetting elementsSetting = MultiBooleanSetting.create("Элементы", List.of("Ватермарка", "Эффекты", "Модераторы", "Уведомления", "Информация", "Бинды", "Таргет худ", "Инвентарь", "Хотбар", "Ватермарка Deluxe", "Таргет худ Deluxe", "Эффекты Deluxe", "Модераторы Deluxe", "Бинды Deluxe", "Кулдауны Deluxe", "Инвентарь Deluxe", "Стрелы Deluxe"));
    private final List<DraggableHudElement> elements = new ArrayList();
    private DraggableHudElement draggingElement = null;
    private float dragOffsetX;
@@ -61,6 +69,14 @@ public final class Interface extends Module {
       this.addElement(new TargetHudComponent("TargetHUD", 166.5F, 128.5F, 960.0F, 495.5F, 0.0F, 31.75F, DraggableHudElement.Align.CENTER));
       this.addElement(new InventoryComponent("Inventory", 0.0F, 0.0F, 960.0F, 495.5F, 10.0F, 150.0F, DraggableHudElement.Align.TOP_LEFT));
       this.addElement(new HootBarComponent("Hotbar", 0.0F, 0.0F, 960.0F, 495.5F, 0.0F, -24.0F, DraggableHudElement.Align.BOTTOM_CENTER));
+      this.addElement(new DeluxeWatermarkComponent("DeluxeWatermark", 0.0F, 0.0F, 960.0F, 495.5F, 10.0F, 28.0F, DraggableHudElement.Align.TOP_LEFT));
+      this.addElement(new DeluxeTargetHudComponent("DeluxeTargetHUD", 166.5F, 170.0F, 960.0F, 495.5F, 0.0F, 73.0F, DraggableHudElement.Align.CENTER));
+      this.addElement(new DeluxePotionsComponent("DeluxePotions", 0.0F, 0.0F, 960.0F, 495.5F, 119.15234F, 96.0F, DraggableHudElement.Align.TOP_LEFT));
+      this.addElement(new DeluxeStaffComponent("DeluxeStaff", 0.0F, 0.0F, 960.0F, 495.5F, 10.0F, 96.0F, DraggableHudElement.Align.TOP_LEFT));
+      this.addElement(new DeluxeKeybindsComponent("DeluxeHotkeys", 349.0F, 0.0F, 960.0F, 495.5F, -122.0F, 96.0F, DraggableHudElement.Align.TOP_RIGHT));
+      this.addElement(new DeluxeCooldownsComponent("DeluxeCooldowns", 0.0F, 0.0F, 960.0F, 495.5F, -119.0F, 96.0F, DraggableHudElement.Align.TOP_RIGHT));
+      this.addElement(new DeluxeInventoryComponent("DeluxeInventory", 0.0F, 0.0F, 960.0F, 495.5F, 10.0F, 173.0F, DraggableHudElement.Align.TOP_LEFT));
+      this.addElement(new DeluxeArrowsComponent("DeluxeArrows", 166.5F, 236.0F, 960.0F, 495.5F, 0.0F, 20.0F, DraggableHudElement.Align.CENTER));
    }
 
    public ModeSetting getModeSetting() {

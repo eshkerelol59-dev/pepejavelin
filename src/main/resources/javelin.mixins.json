@@ -33,6 +33,7 @@
     "client.KeyboardMixin",
     "client.LightmapTextureManagerMixin",
     "client.MinecraftClientMixin",
+    "client.MinecraftTitleScreenMixin",
     "client.MouseMixin",
     "client.render.LivingEntityRendererMixin",
     "client.render.ScreenMixin",
